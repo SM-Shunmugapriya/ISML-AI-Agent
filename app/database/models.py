@@ -3,6 +3,8 @@ from datetime import datetime
 from sqlalchemy import DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from pgvector.sqlalchemy import Vector
+
 from app.database.database import Base
 
 
@@ -68,6 +70,11 @@ class Resource(Base):
 
     overall_score: Mapped[float | None] = mapped_column(
         Float,
+        nullable=True
+    )
+
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(3072),
         nullable=True
     )
 

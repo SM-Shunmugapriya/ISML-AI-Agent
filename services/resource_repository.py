@@ -79,3 +79,29 @@ def delete_resource(
     db.commit()
 
     return True
+
+
+def search_similar_resources(
+    db: Session,
+    query_embedding: list[float],
+    limit: int = 5
+):
+    """
+    Find resources most similar to the query embedding
+    using cosine similarity.
+    """
+
+    distance = Resource.embedding.cosine_distance(query_embedding)
+
+    results = (
+        db.query(
+            Resource,
+            distance.label("distance")
+        )
+        .filter(Resource.embedding.is_not(None))
+        .order_by(distance)
+        .limit(limit)
+        .all()
+    )
+
+    return results

@@ -6,12 +6,16 @@ from pydantic import BaseModel
 
 from app.database.init_db import init_db
 from app.database.database import SessionLocal
+
 from services.resource_repository import (
     create_resource,
     get_all_resources,
     get_resource_by_id,
     delete_resource,
+    search_similar_resources,
 )
+
+from services.embedding_service import generate_embedding
 
 
 # Logging setup
@@ -184,6 +188,60 @@ def remove_resource(resource_id: int):
         return {
             "message": "Resource deleted successfully",
             "id": resource_id,
+        }
+
+    finally:
+        db.close()
+
+
+# Knowledge retrieval endpoint
+@app.get("/resources/search")
+def search_resources(
+    query: str,
+    limit: int = 5
+):
+    db = SessionLocal()
+
+    try:
+        if not query.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Query cannot be empty"
+            )
+
+        if limit < 1 or limit > 20:
+            raise HTTPException(
+                status_code=400,
+                detail="Limit must be between 1 and 20"
+            )
+
+        # Generate embedding for user query
+        query_embedding = generate_embedding(query)
+
+        # Find semantically similar resources
+        results = search_similar_resources(
+            db=db,
+            query_embedding=query_embedding,
+            limit=limit
+        )
+
+        return {
+            "query": query,
+            "count": len(results),
+            "results": [
+                {
+                    "id": resource.id,
+                    "title": resource.title,
+                    "url": resource.url,
+                    "resource_type": resource.resource_type,
+                    "source": resource.source,
+                    "description": resource.description,
+                    "similarity_distance": round(
+                        float(distance), 4
+                    ),
+                }
+                for resource, distance in results
+            ],
         }
 
     finally:
