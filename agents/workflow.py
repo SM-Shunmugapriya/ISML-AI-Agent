@@ -1,16 +1,28 @@
 from langgraph.graph import StateGraph, START, END
+
 from agents.state import AgentState
 from agents.topic_analysis import analyze_topic
 from agents.search_strategy import generate_search_strategy
+from services.logger import log_info, log_error
 
 
-graph = StateGraph(AgentState)
+log_info("Initializing ISML AI Agent workflow")
 
-graph.add_node("topic_analysis", analyze_topic)
-graph.add_node("search_strategy", generate_search_strategy)
 
-graph.add_edge(START, "topic_analysis")
-graph.add_edge("topic_analysis", "search_strategy")
+try:
+    graph = StateGraph(AgentState)
 
-graph.add_edge("search_strategy", END)
-app = graph.compile()
+    graph.add_node("topic_analysis", analyze_topic)
+    graph.add_node("search_strategy", generate_search_strategy)
+
+    graph.add_edge(START, "topic_analysis")
+    graph.add_edge("topic_analysis", "search_strategy")
+    graph.add_edge("search_strategy", END)
+
+    app = graph.compile()
+
+    log_info("ISML AI Agent workflow compiled successfully")
+
+except Exception as e:
+    log_error(f"Workflow initialization failed | error={e}")
+    raise
