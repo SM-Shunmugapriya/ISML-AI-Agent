@@ -1,0 +1,362 @@
+[
+  {
+    "id": 1,
+    "topic": "Python Programming",
+    "category": "Programming",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 2,
+    "topic": "Data Structures",
+    "category": "Computer Science",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 3,
+    "topic": "Object Oriented Programming",
+    "category": "Programming",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 4,
+    "topic": "C Programming",
+    "category": "Programming",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 5,
+    "topic": "C++ Programming",
+    "category": "Programming",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 6,
+    "topic": "Java Programming",
+    "category": "Programming",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 7,
+    "topic": "JavaScript",
+    "category": "Web Development",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 8,
+    "topic": "Arrays",
+    "category": "Data Structures",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 9,
+    "topic": "Linked Lists",
+    "category": "Data Structures",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 10,
+    "topic": "Stacks and Queues",
+    "category": "Data Structures",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 11,
+    "topic": "Trees",
+    "category": "Data Structures",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 12,
+    "topic": "Graphs",
+    "category": "Data Structures",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 13,
+    "topic": "Hash Tables",
+    "category": "Data Structures",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 14,
+    "topic": "Sorting Algorithms",
+    "category": "Algorithms",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 15,
+    "topic": "Searching Algorithms",
+    "category": "Algorithms",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 16,
+    "topic": "Binary Search",
+    "category": "Algorithms",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 17,
+    "topic": "Dynamic Programming",
+    "category": "Algorithms",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 18,
+    "topic": "Greedy Algorithms",
+    "category": "Algorithms",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 19,
+    "topic": "Graph Algorithms",
+    "category": "Algorithms",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 20,
+    "topic": "Time and Space Complexity",
+    "category": "Algorithms",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 21,
+    "topic": "Database Management Systems",
+    "category": "DBMS",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 22,
+    "topic": "SQL",
+    "category": "DBMS",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 23,
+    "topic": "Database Normalization",
+    "category": "DBMS",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 24,
+    "topic": "Transactions and Concurrency Control",
+    "category": "DBMS",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 25,
+    "topic": "Database Indexing",
+    "category": "DBMS",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 26,
+    "topic": "Operating Systems",
+    "category": "Operating Systems",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 27,
+    "topic": "Process Management",
+    "category": "Operating Systems",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 28,
+    "topic": "CPU Scheduling",
+    "category": "Operating Systems",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 29,
+    "topic": "Memory Management",
+    "category": "Operating Systems",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 30,
+    "topic": "Deadlocks",
+    "category": "Operating Systems",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 31,
+    "topic": "Computer Networks",
+    "category": "Networking",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 32,
+    "topic": "OSI Model",
+    "category": "Networking",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 33,
+    "topic": "TCP/IP Protocol",
+    "category": "Networking",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 34,
+    "topic": "HTTP and HTTPS",
+    "category": "Networking",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 35,
+    "topic": "Computer Network Security",
+    "category": "Networking",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 36,
+    "topic": "Artificial Intelligence",
+    "category": "AI",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 37,
+    "topic": "Machine Learning",
+    "category": "AI/ML",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 38,
+    "topic": "Supervised Learning",
+    "category": "Machine Learning",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 39,
+    "topic": "Unsupervised Learning",
+    "category": "Machine Learning",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 40,
+    "topic": "Deep Learning",
+    "category": "AI/ML",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 41,
+    "topic": "Neural Networks",
+    "category": "AI/ML",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 42,
+    "topic": "Natural Language Processing",
+    "category": "AI/ML",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 43,
+    "topic": "Generative AI",
+    "category": "AI",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 44,
+    "topic": "Large Language Models",
+    "category": "AI",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 45,
+    "topic": "HTML",
+    "category": "Web Development",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 46,
+    "topic": "CSS",
+    "category": "Web Development",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 47,
+    "topic": "React",
+    "category": "Web Development",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 48,
+    "topic": "REST APIs",
+    "category": "Web Development",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 49,
+    "topic": "FastAPI",
+    "category": "Web Development",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 50,
+    "topic": "Full Stack Development",
+    "category": "Web Development",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 51,
+    "topic": "Cloud Computing",
+    "category": "Cloud",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 52,
+    "topic": "Amazon Web Services",
+    "category": "Cloud",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 53,
+    "topic": "Microsoft Azure",
+    "category": "Cloud",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 54,
+    "topic": "Docker",
+    "category": "DevOps",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 55,
+    "topic": "Kubernetes",
+    "category": "DevOps",
+    "difficulty": "Advanced"
+  },
+  {
+    "id": 56,
+    "topic": "Git and GitHub",
+    "category": "Software Development",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 57,
+    "topic": "Software Development Life Cycle",
+    "category": "Software Engineering",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 58,
+    "topic": "Software Testing",
+    "category": "Software Engineering",
+    "difficulty": "Intermediate"
+  },
+  {
+    "id": 59,
+    "topic": "Cybersecurity",
+    "category": "Security",
+    "difficulty": "Beginner"
+  },
+  {
+    "id": 60,
+    "topic": "Cryptography",
+    "category": "Security",
+    "difficulty": "Advanced"
+  }
+]
