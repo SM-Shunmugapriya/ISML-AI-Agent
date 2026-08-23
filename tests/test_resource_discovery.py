@@ -2,6 +2,7 @@ from tools.metadata_extractor import extract_metadata
 from tools.pdf_search import pdf_search
 from tools.web_search import web_search
 from tools.youtube_search import youtube_search
+from agents.resource_discovery import discover_resources
 
 
 def test_metadata_extractor():
@@ -52,7 +53,10 @@ def test_web_search():
 
 
 def test_youtube_search():
-    result = youtube_search("Python programming tutorial", max_results=2)
+    result = youtube_search(
+        "Python programming tutorial",
+        max_results=2
+    )
 
     assert isinstance(result, dict)
     assert result["query"] == "Python programming tutorial"
@@ -61,9 +65,25 @@ def test_youtube_search():
 
 
 def test_pdf_search():
-    result = pdf_search("machine learning", max_results=2)
+    result = pdf_search(
+        "machine learning",
+        max_results=2
+    )
 
     assert isinstance(result, dict)
     assert result["query"] == "machine learning"
     assert "results" in result
     assert len(result["results"]) <= 2
+
+
+def test_resource_discovery():
+    state = {
+        "search_queries": ["Python programming"]
+    }
+
+    result = discover_resources(state)
+
+    assert "search_results" in result
+    assert "resources" in result
+    assert isinstance(result["search_results"], list)
+    assert isinstance(result["resources"], list)

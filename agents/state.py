@@ -1,4 +1,3 @@
-
 from typing import TypedDict, List, Dict, Any
 
 
@@ -10,6 +9,7 @@ class AgentState(TypedDict, total=False):
     learning_intent: str
 
     search_queries: List[str]
+    search_tools: List[str]
     search_results: List[Dict[str, Any]]
 
     resources: List[Dict[str, Any]]
