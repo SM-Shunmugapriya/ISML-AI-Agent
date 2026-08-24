@@ -9,14 +9,24 @@ from services.logger import log_info, log_warning, log_error
 
 load_dotenv()
 
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
-if not TAVILY_API_KEY:
-    raise ValueError("TAVILY_API_KEY is not configured in .env")
+def get_tavily_client():
+    """
+    Lazily initialize the Tavily client.
 
-tavily_client = TavilyClient(
-    api_key=TAVILY_API_KEY
-)
+    Returns None when the API key is missing so that
+    the application can continue running safely.
+    """
+    tavily_api_key = os.getenv("TAVILY_API_KEY")
+
+    if not tavily_api_key:
+        log_warning(
+            "TAVILY_API_KEY is not configured. "
+            "Tavily search will be skipped."
+        )
+        return None
+
+    return TavilyClient(api_key=tavily_api_key)
 
 
 def web_search(
@@ -27,15 +37,28 @@ def web_search(
     """
     Search the web for educational resources.
 
+    If the Tavily API key is missing, the search is
+    skipped and an empty result is returned.
+
     Retries the Tavily request if a temporary
     connection or timeout error occurs.
     """
+
+    tavily_client = get_tavily_client()
+
+    # Graceful fallback when API key is missing
+    if tavily_client is None:
+        return {
+            "query": query,
+            "results": []
+        }
 
     for attempt in range(1, retries + 2):
 
         try:
             log_info(
-                f"Tavily search started | query={query} | attempt={attempt}"
+                f"Tavily search started | "
+                f"query={query} | attempt={attempt}"
             )
 
             response = tavily_client.search(
