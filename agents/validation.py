@@ -1,7 +1,9 @@
 from typing import List, Dict, Any
+import requests
 
 from agents.state import AgentState
-from services.logger import log_info, log_error
+from services.logger import log_info, log_error, log_warning
+from services.resource_evaluator import ResourceEvaluator
 
 
 # Required fields for workflow state validation
@@ -24,6 +26,50 @@ REQUIRED_METADATA_FIELDS = [
     "summary",
     "keywords",
 ]
+
+
+# Minimum relevance score required for a resource
+RELEVANCE_THRESHOLD = 0.3
+
+
+# Reuse the existing resource evaluation logic
+evaluator = ResourceEvaluator()
+
+
+def is_url_accessible(url: str) -> bool:
+    """
+    Check whether a resource URL is accessible.
+
+    Returns True when the URL responds with a successful
+    HTTP status code. HEAD is tried first, followed by GET
+    when HEAD is not supported or fails.
+    """
+
+    try:
+        response = requests.head(
+            url,
+            timeout=5,
+            allow_redirects=True,
+        )
+
+        if response.status_code < 400:
+            return True
+
+        response = requests.get(
+            url,
+            timeout=5,
+            allow_redirects=True,
+            stream=True,
+        )
+
+        return response.status_code < 400
+
+    except requests.RequestException as e:
+        log_warning(
+            f"URL accessibility check failed | "
+            f"url={url} | error={e}"
+        )
+        return False
 
 
 def validate_state(state: AgentState) -> AgentState:
@@ -77,15 +123,24 @@ def validate_resources(state: AgentState) -> AgentState:
     Validate that every extracted resource contains
     complete and valid required metadata.
 
-    Incomplete resources are rejected and do not proceed
-    to downstream processing.
+    Validation includes:
+    - Required metadata fields
+    - Keywords structure
+    - URL format
+    - URL accessibility
+    - Resource relevance
+
+    Invalid or irrelevant resources are rejected and do not
+    proceed to downstream processing.
     """
 
     metadata = state.get("metadata", [])
+    topic = state.get("topic", "")
 
     log_info(
         f"Resource validation started | "
-        f"resources_count={len(metadata)}"
+        f"resources_count={len(metadata)} | "
+        f"topic={topic}"
     )
 
     validated_resources: List[Dict[str, Any]] = []
@@ -95,6 +150,7 @@ def validate_resources(state: AgentState) -> AgentState:
         for index, resource in enumerate(metadata):
             missing_fields = []
 
+            # Validate required metadata fields
             for field in REQUIRED_METADATA_FIELDS:
                 value = resource.get(field)
 
@@ -108,11 +164,13 @@ def validate_resources(state: AgentState) -> AgentState:
                     if not isinstance(value, list) or not value:
                         missing_fields.append(field)
 
+            # Validate URL format
             url = resource.get("url", "")
 
             if url and not url.startswith(("http://", "https://")):
                 missing_fields.append("url")
 
+            # Reject immediately if metadata or URL format is invalid
             if missing_fields:
                 rejected_count += 1
 
@@ -124,7 +182,46 @@ def validate_resources(state: AgentState) -> AgentState:
 
                 continue
 
+            # Validate URL accessibility
+            if not is_url_accessible(url):
+                rejected_count += 1
+
+                log_error(
+                    f"Resource rejected | index={index} | "
+                    f"reason=url_not_accessible | "
+                    f"url={url}"
+                )
+
+                continue
+
+            # Validate resource relevance
+            relevance_score = evaluator.calculate_relevance(
+                topic,
+                resource,
+            )
+
+            if relevance_score < RELEVANCE_THRESHOLD:
+                rejected_count += 1
+
+                log_error(
+                    f"Resource rejected | index={index} | "
+                    f"reason=low_relevance | "
+                    f"relevance_score={relevance_score} | "
+                    f"threshold={RELEVANCE_THRESHOLD} | "
+                    f"topic={topic}"
+                )
+
+                continue
+
+            # Resource passed all validation checks
             validated_resources.append(resource)
+
+            log_info(
+                f"Resource validation passed | "
+                f"index={index} | "
+                f"url={url} | "
+                f"relevance_score={relevance_score}"
+            )
 
         log_info(
             f"Resource validation completed | "

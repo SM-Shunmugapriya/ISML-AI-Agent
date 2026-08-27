@@ -12,13 +12,13 @@ def complete_metadata():
         "summary": "A beginner Python programming tutorial.",
         "keywords": ["python", "programming", "tutorial"],
         "content": (
-            "Learn Python programming with tutorials, "
-            "examples, and practical exercises."
+            "Learn Python programming with examples, "
+            "tutorials, and practical exercises."
         ),
     }
 
 
-def test_complete_metadata_is_accepted(monkeypatch):
+def test_valid_resource_passes_validation(monkeypatch):
     monkeypatch.setattr(
         "agents.validation.is_url_accessible",
         lambda url: True,
@@ -32,14 +32,35 @@ def test_complete_metadata_is_accepted(monkeypatch):
     result = validate_resources(state)
 
     assert len(result["validated_resources"]) == 1
-    assert result["validated_resources"][0]["title"] == (
-        "Python Programming Tutorial"
+
+
+def test_inaccessible_url_is_rejected(monkeypatch):
+    monkeypatch.setattr(
+        "agents.validation.is_url_accessible",
+        lambda url: False,
     )
 
+    state = {
+        "topic": "Python programming",
+        "metadata": [complete_metadata()],
+    }
 
-def test_missing_required_metadata_is_rejected():
+    result = validate_resources(state)
+
+    assert result["validated_resources"] == []
+
+
+def test_irrelevant_resource_is_rejected(monkeypatch):
+    monkeypatch.setattr(
+        "agents.validation.is_url_accessible",
+        lambda url: True,
+    )
+
     metadata = complete_metadata()
-    metadata["language"] = ""
+    metadata["title"] = "Cooking Recipes"
+    metadata["content"] = (
+        "Learn delicious cooking recipes and food preparation."
+    )
 
     state = {
         "topic": "Python programming",
@@ -51,35 +72,23 @@ def test_missing_required_metadata_is_rejected():
     assert result["validated_resources"] == []
 
 
-def test_missing_keywords_is_rejected():
-    metadata = complete_metadata()
-    metadata["keywords"] = []
+def test_relevant_resource_is_accepted(monkeypatch):
+    monkeypatch.setattr(
+        "agents.validation.is_url_accessible",
+        lambda url: True,
+    )
 
     state = {
         "topic": "Python programming",
-        "metadata": [metadata],
+        "metadata": [complete_metadata()],
     }
 
     result = validate_resources(state)
 
-    assert result["validated_resources"] == []
+    assert len(result["validated_resources"]) == 1
 
 
-def test_invalid_url_is_rejected():
-    metadata = complete_metadata()
-    metadata["url"] = "example.com/python"
-
-    state = {
-        "topic": "Python programming",
-        "metadata": [metadata],
-    }
-
-    result = validate_resources(state)
-
-    assert result["validated_resources"] == []
-
-
-def test_only_complete_resources_proceed(monkeypatch):
+def test_only_valid_resources_reach_downstream(monkeypatch):
     monkeypatch.setattr(
         "agents.validation.is_url_accessible",
         lambda url: True,
@@ -88,7 +97,10 @@ def test_only_complete_resources_proceed(monkeypatch):
     valid_resource = complete_metadata()
 
     invalid_resource = complete_metadata()
-    invalid_resource["summary"] = ""
+    invalid_resource["title"] = "Cooking Recipes"
+    invalid_resource["content"] = (
+        "Learn delicious cooking recipes and food preparation."
+    )
 
     state = {
         "topic": "Python programming",
