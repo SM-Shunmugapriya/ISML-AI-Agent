@@ -4,13 +4,25 @@ from agents.state import AgentState
 from services.logger import log_info, log_error
 
 
-# Required fields that must be preserved
-# throughout the entire workflow.
+# Required fields for workflow state validation
 REQUIRED_STATE_FIELDS = [
     "domain",
     "course",
     "topic",
     "level",
+]
+
+
+# Required metadata fields for every resource
+REQUIRED_METADATA_FIELDS = [
+    "title",
+    "url",
+    "type",
+    "source",
+    "language",
+    "difficulty",
+    "summary",
+    "keywords",
 ]
 
 
@@ -61,30 +73,63 @@ def validate_state(state: AgentState) -> AgentState:
 
 
 def validate_resources(state: AgentState) -> AgentState:
+    """
+    Validate that every extracted resource contains
+    complete and valid required metadata.
+
+    Incomplete resources are rejected and do not proceed
+    to downstream processing.
+    """
+
     metadata = state.get("metadata", [])
 
     log_info(
-        f"Resource validation started | resources_count={len(metadata)}"
+        f"Resource validation started | "
+        f"resources_count={len(metadata)}"
     )
 
     validated_resources: List[Dict[str, Any]] = []
+    rejected_count = 0
 
     try:
-        for resource in metadata:
-            title = resource.get("title", "").strip()
-            url = resource.get("url", "").strip()
+        for index, resource in enumerate(metadata):
+            missing_fields = []
 
-            if not title or not url:
-                continue
+            for field in REQUIRED_METADATA_FIELDS:
+                value = resource.get(field)
 
-            if not url.startswith(("http://", "https://")):
+                if value is None:
+                    missing_fields.append(field)
+
+                elif isinstance(value, str) and not value.strip():
+                    missing_fields.append(field)
+
+                elif field == "keywords":
+                    if not isinstance(value, list) or not value:
+                        missing_fields.append(field)
+
+            url = resource.get("url", "")
+
+            if url and not url.startswith(("http://", "https://")):
+                missing_fields.append("url")
+
+            if missing_fields:
+                rejected_count += 1
+
+                log_error(
+                    f"Resource rejected | index={index} | "
+                    f"missing_or_invalid_fields="
+                    f"{', '.join(sorted(set(missing_fields)))}"
+                )
+
                 continue
 
             validated_resources.append(resource)
 
         log_info(
             f"Resource validation completed | "
-            f"valid_count={len(validated_resources)}"
+            f"valid_count={len(validated_resources)} | "
+            f"rejected_count={rejected_count}"
         )
 
         return {
