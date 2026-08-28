@@ -6,7 +6,7 @@ from agents.search_strategy import generate_search_strategy
 from agents.resource_discovery import discover_resources
 from agents.metadata_extraction import extract_resource_metadata
 from agents.validation import validate_resources
-from agents.deduplication import deduplicate_resources
+from agents.deduplication import deduplicate_resources_node
 from agents.evaluation import evaluate_resources
 from agents.ranking import rank_resources
 from agents.categorization import categorize_resources
@@ -29,7 +29,7 @@ try:
     graph.add_node("resource_discovery", discover_resources)
     graph.add_node("metadata_extraction", extract_resource_metadata)
     graph.add_node("validation", validate_resources)
-    graph.add_node("deduplication", deduplicate_resources)
+    graph.add_node("deduplication", deduplicate_resources_node)
     graph.add_node("evaluation", evaluate_resources)
     graph.add_node("ranking", rank_resources)
     graph.add_node("categorization", categorize_resources)

@@ -2,6 +2,7 @@ from typing import List, Dict, Any
 
 from agents.state import AgentState
 from app.database.database import SessionLocal
+from services.dedup_service import normalize_url
 from services.resource_repository import (
     create_resource,
     get_resource_by_url,
@@ -25,12 +26,18 @@ def persist_resources(state: AgentState) -> AgentState:
             resource = item.get("resource", item)
 
             title = resource.get("title", "").strip()
-            url = resource.get("url", "").strip()
+            raw_url = resource.get("url", "").strip()
 
-            if not title or not url:
+            if not title or not raw_url:
                 continue
 
-            # Check whether resource already exists
+            # Normalize URL before database operations
+            url = normalize_url(raw_url)
+
+            if not url:
+                continue
+
+            # Check whether normalized resource already exists
             existing_resource = get_resource_by_url(
                 db,
                 url
@@ -96,7 +103,8 @@ def persist_resources(state: AgentState) -> AgentState:
             })
 
         log_info(
-            f"Database persistence completed | saved_count={len(persisted_resources)}"
+            f"Database persistence completed | "
+            f"saved_count={len(persisted_resources)}"
         )
 
         return {
