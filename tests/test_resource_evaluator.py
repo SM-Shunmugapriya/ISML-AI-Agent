@@ -109,10 +109,12 @@ def test_full_evaluation():
     assert "scores" in result
     assert "overall_score" in result
 
-    assert 0.0 <= result["overall_score"] <= 1.0
+    # Overall score must be between 0 and 100.
+    assert 0.0 <= result["overall_score"] <= 100.0
 
     scores = result["scores"]
 
+    # Individual evaluation scores remain between 0 and 1.
     assert 0.0 <= scores["relevance"] <= 1.0
     assert 0.0 <= scores["educational_quality"] <= 1.0
     assert 0.0 <= scores["credibility"] <= 1.0

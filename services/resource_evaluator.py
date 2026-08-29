@@ -176,6 +176,9 @@ class ResourceEvaluator:
             * self.criteria["learning_effectiveness"]
         )
 
+        # Convert the weighted score from 0.0-1.0 to 0-100.
+        overall_score = round(overall_score * 100, 2)
+
         return {
             "resource": resource,
             "scores": {
@@ -184,5 +187,5 @@ class ResourceEvaluator:
                 "credibility": credibility,
                 "learning_effectiveness": learning_effectiveness,
             },
-            "overall_score": round(overall_score, 2),
+            "overall_score": overall_score,
         }
