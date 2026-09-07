@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from pgvector.sqlalchemy import Vector
@@ -36,6 +37,16 @@ class Resource(Base):
     source: Mapped[str] = mapped_column(
         String(100),
         nullable=False
+    )
+
+    category: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True
+    )
+
+    tags: Mapped[list | None] = mapped_column(
+        JSONB,
+        nullable=True
     )
 
     description: Mapped[str | None] = mapped_column(

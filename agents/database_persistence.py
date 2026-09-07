@@ -72,6 +72,13 @@ def persist_resources(state: AgentState) -> AgentState:
                         "Web"
                     )
                 ),
+                category=item.get(
+                    "category"
+                ),
+                tags=item.get(
+                    "tags",
+                    item.get("keywords", [])
+                ),
                 description=resource.get(
                     "description",
                     ""
