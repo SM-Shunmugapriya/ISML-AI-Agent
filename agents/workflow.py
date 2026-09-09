@@ -13,6 +13,7 @@ from agents.categorization import categorize_resources
 from agents.learning_sequence import create_learning_sequence
 from agents.database_persistence import persist_resources
 from agents.embedding import generate_resource_embeddings
+from agents.output_validation import validate_final_output
 
 from services.logger import log_info, log_error
 
@@ -36,6 +37,7 @@ try:
     graph.add_node("learning_sequence", create_learning_sequence)
     graph.add_node("database_persistence", persist_resources)
     graph.add_node("embedding", generate_resource_embeddings)
+    graph.add_node("output_validation", validate_final_output)
 
     # Connect workflow nodes
     graph.add_edge(START, "topic_analysis")
@@ -50,7 +52,8 @@ try:
     graph.add_edge("categorization", "learning_sequence")
     graph.add_edge("learning_sequence", "database_persistence")
     graph.add_edge("database_persistence", "embedding")
-    graph.add_edge("embedding", END)
+    graph.add_edge("embedding", "output_validation")
+    graph.add_edge("output_validation", END)
 
     app = graph.compile()
 

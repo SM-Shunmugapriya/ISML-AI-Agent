@@ -36,3 +36,4 @@ class AgentState(TypedDict, total=False):
 
     # Final answer
     final_answer: str
+    validated_output: Dict[str, Any]
