@@ -43,4 +43,5 @@ def generate_resource_embeddings():
 
 if __name__ == "__main__":
     generate_resource_embeddings()
+
     
