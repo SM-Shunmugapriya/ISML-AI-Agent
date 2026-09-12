@@ -25,7 +25,7 @@ def test_complete_workflow_structure():
 
 
 def test_workflow_has_all_required_nodes():
-    assert len(graph.nodes) == 12
+    assert len(graph.nodes) == 13
 
 
 def test_resource_discovery_uses_selected_tools(monkeypatch):

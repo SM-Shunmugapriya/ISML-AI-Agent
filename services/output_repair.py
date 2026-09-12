@@ -22,7 +22,7 @@ IMPORTANT RULES:
 2. Do NOT replace existing valid values with empty strings.
 3. Every required string field MUST contain a meaningful
    non-empty value.
-4. qualityScore MUST be a number between 0 and 10.
+4. qualityScore MUST be a number between 0 and 100.
 5. If a required field is missing or empty, infer a suitable
    meaningful value from the resource title, topic, and
    other available information.
@@ -40,7 +40,7 @@ Required structure:
         {{
             "title": "string",
             "type": "string",
-            "qualityScore": "number between 0 and 10",
+            "qualityScore": "number between 0 and 100",
             "difficulty": "string",
             "category": "string",
             "summary": "string",
@@ -51,7 +51,7 @@ Required structure:
         {{
             "title": "string",
             "type": "string",
-            "qualityScore": "number between 0 and 10",
+            "qualityScore": "number between 0 and 100",
             "difficulty": "string",
             "category": "string",
             "summary": "string",

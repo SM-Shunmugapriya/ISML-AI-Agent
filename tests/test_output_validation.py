@@ -13,7 +13,7 @@ def test_valid_final_output():
             {
                 "title": "Python Course",
                 "type": "Course",
-                "qualityScore": 9.0,
+                "qualityScore": 90.0,
                 "difficulty": "Beginner",
                 "category": "Programming",
                 "summary": "Python basics course",
@@ -51,7 +51,7 @@ def test_empty_required_fields_rejected():
             {
                 "title": "Python Course",
                 "type": "",
-                "qualityScore": 8.0,
+                "qualityScore": 80.0,
                 "difficulty": "",
                 "category": "",
                 "summary": "",
@@ -72,7 +72,7 @@ def test_quality_score_range():
             {
                 "title": "Python Course",
                 "type": "Course",
-                "qualityScore": 11.0,
+                "qualityScore": 101.0,
                 "difficulty": "Beginner",
                 "category": "Programming",
                 "summary": "Python basics",
@@ -110,7 +110,7 @@ def test_invalid_output_triggers_repair():
             {
                 "title": "Python Course",
                 "type": "Course",
-                "qualityScore": 8.0,
+                "qualityScore": 80.0,
                 "difficulty": "Beginner",
                 "category": "Programming",
                 "summary": "Python basics course",
