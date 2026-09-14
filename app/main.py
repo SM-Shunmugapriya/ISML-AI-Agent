@@ -247,3 +247,20 @@ def remove_resource(resource_id: int):
 
     finally:
         db.close()
+from agents.workflow import app as agent_workflow
+
+from agents.workflow import app as agent_workflow
+
+
+class AgentDiscoverRequest(BaseModel):
+    user_query: str
+
+
+@app.post('/api/agent/discover')
+def discover_agent(request: AgentDiscoverRequest):
+    try:
+        result = agent_workflow.invoke({'user_query': request.user_query})
+        return result.get('validated_output', result)
+    except Exception as e:
+        logger.exception('Agent workflow execution failed')
+        raise HTTPException(status_code=500, detail=str(e))
