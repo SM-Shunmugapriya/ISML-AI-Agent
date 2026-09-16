@@ -40,8 +40,10 @@ def is_valid_metadata(metadata: Dict[str, Any]) -> bool:
 
 def extract_resource_metadata(state: AgentState) -> AgentState:
     """
-    Extract metadata from discovered resources and reject
-    resources with incomplete required metadata.
+    Extract metadata from discovered resources.
+
+    A failure in one resource is isolated, logged, and skipped.
+    Processing continues for the remaining resources.
     """
 
     resources = state.get("resources", [])
@@ -52,10 +54,10 @@ def extract_resource_metadata(state: AgentState) -> AgentState:
 
     metadata: List[Dict[str, Any]] = []
     rejected_count = 0
+    failed_count = 0
 
-    try:
-        for resource in resources:
-
+    for resource in resources:
+        try:
             resource_type = resource.get(
                 "resource_type",
                 "web"
@@ -71,7 +73,6 @@ def extract_resource_metadata(state: AgentState) -> AgentState:
                 **extracted
             }
 
-            # Check all required metadata fields
             if not is_valid_metadata(complete_metadata):
                 rejected_count += 1
 
@@ -92,19 +93,26 @@ def extract_resource_metadata(state: AgentState) -> AgentState:
 
             metadata.append(complete_metadata)
 
-        log_info(
-            f"Metadata extraction completed | "
-            f"metadata_count={len(metadata)} | "
-            f"rejected_count={rejected_count}"
-        )
+        except Exception as e:
+            failed_count += 1
 
-        return {
-            **state,
-            "metadata": metadata,
-        }
+            log_error(
+                "Resource metadata extraction failed | "
+                f"title={resource.get('title', '')} | "
+                f"url={resource.get('url', '')} | "
+                f"error={e} | resource skipped"
+            )
 
-    except Exception as e:
-        log_error(
-            f"Metadata extraction failed | error={e}"
-        )
-        raise
+            continue
+
+    log_info(
+        f"Metadata extraction completed | "
+        f"metadata_count={len(metadata)} | "
+        f"rejected_count={rejected_count} | "
+        f"failed_count={failed_count}"
+    )
+
+    return {
+        **state,
+        "metadata": metadata,
+    }
