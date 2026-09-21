@@ -87,3 +87,30 @@ def test_resource_discovery():
     assert "resources" in result
     assert isinstance(result["search_results"], list)
     assert isinstance(result["resources"], list)
+
+
+def test_multi_source_resource_discovery():
+    state = {
+        "search_queries": ["Python programming"],
+        "search_tools": ["web", "youtube", "pdf"]
+    }
+
+    result = discover_resources(state)
+
+    resources = result["resources"]
+
+    assert isinstance(resources, list)
+
+    source_types = {
+        resource["resource_type"]
+        for resource in resources
+    }
+
+    assert "web" in source_types
+    assert "youtube" in source_types
+    assert "pdf" in source_types
+
+    for resource in resources:
+        assert "title" in resource
+        assert "url" in resource
+        assert "resource_type" in resource
