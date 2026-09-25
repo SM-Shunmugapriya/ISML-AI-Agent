@@ -29,6 +29,7 @@ Available search tools:
 - web: General web resources, documentation, articles, and tutorials
 - youtube: Video tutorials, lectures, and demonstrations
 - pdf: Academic papers, lecture notes, textbooks, and study materials
+- audio: Audio lectures, podcasts, spoken tutorials, and educational recordings
 
 Select one or more appropriate tools.
 
@@ -45,12 +46,13 @@ Return ONLY valid JSON in this exact structure:
     "search_tools": [
         "web",
         "youtube",
-        "pdf"
+        "pdf",
+        "audio"
     ]
 }}
 
 The search_tools values MUST contain only:
-"web", "youtube", or "pdf".
+"web", "youtube", "pdf", or "audio".
 """
 
     try:
@@ -70,7 +72,8 @@ The search_tools values MUST contain only:
         valid_tools = {
             "web",
             "youtube",
-            "pdf"
+            "pdf",
+            "audio"
         }
 
         search_tools = [

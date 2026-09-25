@@ -45,7 +45,10 @@ def test_metadata_extractor_pdf():
 
 
 def test_web_search():
-    result = web_search("Python programming", max_results=2)
+    result = web_search(
+        "Python programming",
+        max_results=2
+    )
 
     assert isinstance(result, dict)
     assert "results" in result
@@ -89,11 +92,67 @@ def test_resource_discovery():
     assert isinstance(result["resources"], list)
 
 
-def test_multi_source_resource_discovery():
+def test_multi_source_resource_discovery(monkeypatch):
     state = {
         "search_queries": ["Python programming"],
-        "search_tools": ["web", "youtube", "pdf"]
+        "search_tools": ["web", "youtube", "pdf", "audio"]
     }
+
+    monkeypatch.setattr(
+        "agents.resource_discovery.web_search",
+        lambda query, max_results=5: {
+            "results": [
+                {
+                    "title": "Python Web Tutorial",
+                    "url": "https://example.com/python",
+                    "content": "Python programming tutorial",
+                    "score": 0.9
+                }
+            ]
+        }
+    )
+
+    monkeypatch.setattr(
+        "agents.resource_discovery.youtube_search",
+        lambda query, max_results=5: {
+            "results": [
+                {
+                    "title": "Python YouTube Tutorial",
+                    "url": "https://youtube.com/watch?v=test123",
+                    "channel": "Python Channel",
+                    "duration": "10:00",
+                    "views": "1000 views"
+                }
+            ]
+        }
+    )
+
+    monkeypatch.setattr(
+        "agents.resource_discovery.pdf_search",
+        lambda query, max_results=5: {
+            "results": [
+                {
+                    "title": "Python PDF Notes",
+                    "url": "https://example.com/python.pdf",
+                    "content": "Python notes",
+                    "score": 0.8
+                }
+            ]
+        }
+    )
+
+    monkeypatch.setattr(
+        "agents.resource_discovery.audio_search",
+        lambda query, max_results=5: {
+            "results": [
+                {
+                    "title": "Python Audio Lecture",
+                    "url": "https://archive.org/details/python-audio",
+                    "description": "Python programming audio lecture"
+                }
+            ]
+        }
+    )
 
     result = discover_resources(state)
 
@@ -109,6 +168,9 @@ def test_multi_source_resource_discovery():
     assert "web" in source_types
     assert "youtube" in source_types
     assert "pdf" in source_types
+    assert "audio" in source_types
+
+    assert len(resources) == 4
 
     for resource in resources:
         assert "title" in resource

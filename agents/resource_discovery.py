@@ -4,6 +4,7 @@ from agents.state import AgentState
 from tools.web_search import web_search
 from tools.youtube_search import youtube_search
 from tools.pdf_search import pdf_search
+from tools.audio_search import audio_search
 from services.logger import log_info, log_error
 
 
@@ -76,6 +77,21 @@ def discover_resources(state: AgentState) -> AgentState:
                         "content": item.get("content", ""),
                         "resource_type": "pdf",
                         "score": item.get("score", 0.0),
+                    })
+
+            # Audio resources
+            if "audio" in search_tools:
+                audio_result = audio_search(
+                    query,
+                    max_results=5
+                )
+
+                for item in audio_result.get("results", []):
+                    resources.append({
+                        "title": item.get("title", ""),
+                        "url": item.get("url", ""),
+                        "content": item.get("description", ""),
+                        "resource_type": "audio",
                     })
 
         log_info(
