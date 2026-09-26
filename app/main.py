@@ -16,6 +16,7 @@ from services.resource_repository import (
 )
 
 from services.embedding_service import generate_embedding
+from app.categorization.categorization_service import categorize_resource
 
 
 # Logging setup
@@ -85,12 +86,28 @@ def add_resource(resource: ResourceCreate):
     db = SessionLocal()
 
     try:
+        # Categorize resource using metadata and content
+        category_result = categorize_resource(
+            metadata={
+                "title": resource.title,
+                "resource_type": resource.resource_type,
+                "source": resource.source,
+                "description": resource.description or "",
+            },
+            content_snippet=resource.content or "",
+        )
+
+        category = category_result["category"]
+        confidence = category_result["confidence"]
+
+        # Store resource with generated category
         new_resource = create_resource(
             db=db,
             title=resource.title,
             url=resource.url,
             resource_type=resource.resource_type,
             source=resource.source,
+            category=category,
             description=resource.description,
             content=resource.content,
             relevance_score=resource.relevance_score,
@@ -105,6 +122,8 @@ def add_resource(resource: ResourceCreate):
             "id": new_resource.id,
             "title": new_resource.title,
             "url": new_resource.url,
+            "category": new_resource.category,
+            "confidence": confidence,
             "overall_score": new_resource.overall_score,
         }
 
@@ -127,6 +146,7 @@ def list_resources():
                 "url": resource.url,
                 "resource_type": resource.resource_type,
                 "source": resource.source,
+                "category": resource.category,
                 "description": resource.description,
                 "overall_score": resource.overall_score,
             }
@@ -179,6 +199,7 @@ def search_resources(
                     "url": resource.url,
                     "resource_type": resource.resource_type,
                     "source": resource.source,
+                    "category": resource.category,
                     "description": resource.description,
                     "similarity_distance": round(
                         float(distance), 4
@@ -212,6 +233,7 @@ def get_resource(resource_id: int):
             "url": resource.url,
             "resource_type": resource.resource_type,
             "source": resource.source,
+            "category": resource.category,
             "description": resource.description,
             "content": resource.content,
             "relevance_score": resource.relevance_score,
@@ -247,8 +269,9 @@ def remove_resource(resource_id: int):
 
     finally:
         db.close()
-from agents.workflow import app as agent_workflow
 
+
+# Agent workflow
 from agents.workflow import app as agent_workflow
 
 
@@ -256,11 +279,18 @@ class AgentDiscoverRequest(BaseModel):
     user_query: str
 
 
-@app.post('/api/agent/discover')
+@app.post("/api/agent/discover")
 def discover_agent(request: AgentDiscoverRequest):
     try:
-        result = agent_workflow.invoke({'user_query': request.user_query})
-        return result.get('validated_output', result)
+        result = agent_workflow.invoke(
+            {"user_query": request.user_query}
+        )
+
+        return result.get("validated_output", result)
+
     except Exception as e:
-        logger.exception('Agent workflow execution failed')
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Agent workflow execution failed")
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
