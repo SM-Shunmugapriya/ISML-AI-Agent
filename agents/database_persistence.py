@@ -102,6 +102,7 @@ def persist_resources(state: AgentState) -> AgentState:
                 overall_score=item.get(
                     "overall_score"
                 ),
+                processing_status="pending",
             )
 
             persisted_resources.append({

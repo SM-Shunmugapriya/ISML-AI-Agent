@@ -26,7 +26,7 @@ def generate_resource_embeddings(state: AgentState) -> AgentState:
             title = resource.get("title", "")
             description = resource.get("description", "")
             content = resource.get("content", "")
-            url = resource.get("url", "")
+            database_id = item.get("database_id")
 
             text = f"{title}\n{description}\n{content}".strip()
 
@@ -36,33 +36,39 @@ def generate_resource_embeddings(state: AgentState) -> AgentState:
                 )
                 continue
 
+            if not database_id:
+                log_info(
+                    f"Skipping embedding | title={title} | "
+                    f"reason=missing_database_id"
+                )
+                continue
+
             # Generate embedding
             embedding = generate_embedding(text)
 
             embeddings.append(embedding)
 
-            # Find corresponding database resource
-            db_resource = None
+            # Find exact persisted database resource by ID
+            db_resource = (
+                db.query(Resource)
+                .filter(Resource.id == database_id)
+                .first()
+            )
 
-            if url:
-                db_resource = (
-                    db.query(Resource)
-                    .filter(Resource.url == url)
-                    .first()
-                )
-
-            # Save embedding into database
             if db_resource:
                 db_resource.embedding = embedding
+                db_resource.processing_status = "completed"
 
                 log_info(
                     f"Embedding saved to database | "
+                    f"id={db_resource.id} | "
                     f"title={db_resource.title} | "
                     f"dimensions={len(embedding)}"
                 )
             else:
                 log_info(
-                    f"Database resource not found | url={url}"
+                    f"Database resource not found | "
+                    f"id={database_id}"
                 )
 
         # Commit all embedding updates

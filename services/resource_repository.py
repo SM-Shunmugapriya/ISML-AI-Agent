@@ -18,6 +18,7 @@ def create_resource(
     credibility: float | None = None,
     learning_effectiveness: float | None = None,
     overall_score: float | None = None,
+    processing_status: str = "pending",
 ):
     resource = Resource(
         title=title,
@@ -33,6 +34,7 @@ def create_resource(
         credibility=credibility,
         learning_effectiveness=learning_effectiveness,
         overall_score=overall_score,
+        processing_status=processing_status,
     )
 
     db.add(resource)

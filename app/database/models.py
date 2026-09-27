@@ -89,6 +89,12 @@ class Resource(Base):
         nullable=True
     )
 
+    processing_status: Mapped[str] = mapped_column(
+        String(50),
+        default="pending",
+        nullable=False
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
