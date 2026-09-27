@@ -2,6 +2,7 @@ from typing import List, Dict, Any
 
 from agents.state import AgentState
 from services.logger import log_info, log_error
+from services.sequence_service import generate_learning_sequence
 
 
 def create_learning_sequence(state: AgentState) -> AgentState:
@@ -12,13 +13,9 @@ def create_learning_sequence(state: AgentState) -> AgentState:
     )
 
     try:
-        learning_sequence: List[Dict[str, Any]] = []
-
-        for index, resource in enumerate(resources, start=1):
-            learning_sequence.append({
-                **resource,
-                "learning_order": index,
-            })
+        learning_sequence: List[Dict[str, Any]] = generate_learning_sequence(
+            resources
+        )
 
         log_info(
             f"Learning sequence created | sequence_count={len(learning_sequence)}"

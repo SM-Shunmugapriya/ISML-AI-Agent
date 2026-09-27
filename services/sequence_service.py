@@ -2,8 +2,8 @@ from typing import List, Dict, Any
 
 
 CATEGORY_ORDER = {
-    "Core Learning": 1,
-    "Foundation": 2,
+    "Foundation": 1,
+    "Core Learning": 2,
     "Grammar": 3,
     "Vocabulary": 4,
     "Pronunciation": 5,
@@ -37,19 +37,18 @@ def generate_learning_sequence(
     sorted_resources = sorted(
         resources,
         key=lambda resource: (
-            CATEGORY_ORDER.get(
-                resource.get("category", "Supplementary"),
-                11,
-            ),
             DIFFICULTY_ORDER.get(
                 str(resource.get("difficulty", "beginner")).lower(),
                 2,
+            ),
+            CATEGORY_ORDER.get(
+                resource.get("category", "Supplementary"),
+                11,
             ),
             resource.get("rank", 9999),
         ),
     )
 
-    # Maximum 10 steps
     selected_resources = sorted_resources[:10]
 
     learning_sequence = []
