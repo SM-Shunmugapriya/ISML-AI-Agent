@@ -12,7 +12,12 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = genai.Client(
+    api_key=GEMINI_API_KEY,
+    http_options={
+        "timeout": 30000
+    }
+)
 
 
 def ask_gemini(prompt: str) -> dict:

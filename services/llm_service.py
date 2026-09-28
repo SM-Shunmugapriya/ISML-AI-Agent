@@ -1,14 +1,18 @@
 from services.deepseek_service import ask_deepseek
 from services.gemini_service import ask_gemini
-from services.logger import log_info, log_warning, log_error
+from services.logger import log_info
 from services.cache import get_cached, set_cached
+from services.resilience_service import (
+    retry_with_backoff,
+    CircuitBreaker,
+)
 
 import hashlib
-import time
 
 
-MAX_RETRIES = 3
-RETRY_DELAY = 2
+LLM_CIRCUIT_BREAKER = CircuitBreaker(
+    failure_threshold=5
+)
 
 
 def create_cache_key(prompt: str, provider: str) -> str:
@@ -35,64 +39,30 @@ def ask_llm(prompt: str, provider: str = "gemini") -> dict:
         f"LLM request started | provider={provider}"
     )
 
-    for attempt in range(1, MAX_RETRIES + 1):
+    if provider == "deepseek":
+        api_call = ask_deepseek
 
-        try:
-            start_time = time.perf_counter()
+    elif provider == "gemini":
+        api_call = ask_gemini
 
-            if provider == "deepseek":
-                response = ask_deepseek(prompt)
+    else:
+        raise ValueError(
+            f"Unsupported LLM provider: {provider}"
+        )
 
-            elif provider == "gemini":
-                response = ask_gemini(prompt)
+    resilient_api_call = retry_with_backoff(
+        max_retries=3,
+        backoff_factor=1,
+        timeout=30,
+        circuit_breaker=LLM_CIRCUIT_BREAKER,
+    )(api_call)
 
-            else:
-                raise ValueError(
-                    f"Unsupported LLM provider: {provider}"
-                )
+    response = resilient_api_call(prompt)
 
-            elapsed_time = time.perf_counter() - start_time
+    set_cached(cache_key, response)
 
-            set_cached(cache_key, response)
+    log_info(
+        f"LLM response cached | provider={provider}"
+    )
 
-            log_info(
-                f"LLM request successful | "
-                f"provider={provider} | "
-                f"attempt={attempt} | "
-                f"response_time={elapsed_time:.2f}s"
-            )
-
-            log_info(
-                f"LLM response cached | provider={provider}"
-            )
-
-            return response
-
-        except Exception as e:
-
-            log_warning(
-                f"LLM request failed | "
-                f"provider={provider} | "
-                f"attempt={attempt}/{MAX_RETRIES} | "
-                f"error={e}"
-            )
-
-            if attempt < MAX_RETRIES:
-
-                log_info(
-                    f"Retrying LLM request | "
-                    f"next_attempt={attempt + 1}"
-                )
-
-                time.sleep(RETRY_DELAY)
-
-            else:
-
-                log_error(
-                    f"LLM request failed after "
-                    f"{MAX_RETRIES} attempts | "
-                    f"provider={provider} | "
-                    f"error={e}"
-                )
-
-                raise
+    return response

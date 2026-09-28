@@ -1,13 +1,21 @@
 import os
-import time
 
 from dotenv import load_dotenv
 from tavily import TavilyClient
 
-from services.logger import log_info, log_warning, log_error
+from services.logger import log_info, log_warning
+from services.resilience_service import (
+    retry_with_backoff,
+    CircuitBreaker,
+)
 
 
 load_dotenv()
+
+
+TAVILY_CIRCUIT_BREAKER = CircuitBreaker(
+    failure_threshold=5
+)
 
 
 def get_tavily_client():
@@ -32,16 +40,16 @@ def get_tavily_client():
 def web_search(
     query: str,
     max_results: int = 5,
-    retries: int = 2
+    retries: int = 3
 ):
     """
     Search the web for educational resources.
 
-    If the Tavily API key is missing, the search is
-    skipped and an empty result is returned.
+    Uses retry with exponential backoff and circuit
+    breaker protection for Tavily API failures.
 
-    Retries the Tavily request if a temporary
-    connection or timeout error occurs.
+    If the Tavily API key is missing or the request
+    fails after retries, an empty result is returned.
     """
 
     tavily_client = get_tavily_client()
@@ -53,54 +61,43 @@ def web_search(
             "results": []
         }
 
-    for attempt in range(1, retries + 2):
+    log_info(
+        f"Tavily search started | query={query}"
+    )
 
-        try:
-            log_info(
-                f"Tavily search started | "
-                f"query={query} | attempt={attempt}"
-            )
+    def tavily_request():
+        return tavily_client.search(
+            query=query,
+            search_depth="advanced",
+            max_results=max_results,
+            include_answer=True,
+        )
 
-            response = tavily_client.search(
-                query=query,
-                search_depth="advanced",
-                max_results=max_results,
-                include_answer=True,
-            )
+    try:
+        resilient_search = retry_with_backoff(
+            max_retries=retries,
+            backoff_factor=1,
+            timeout=30,
+            circuit_breaker=TAVILY_CIRCUIT_BREAKER,
+        )(tavily_request)
 
-            log_info(
-                f"Tavily search completed | query={query}"
-            )
+        response = resilient_search()
 
-            return response
+        log_info(
+            f"Tavily search completed | query={query}"
+        )
 
-        except Exception as e:
+        return response
 
-            log_warning(
-                f"Tavily search failed | "
-                f"query={query} | "
-                f"attempt={attempt} | "
-                f"error={e}"
-            )
+    except Exception as e:
+        log_warning(
+            f"Tavily search unavailable | "
+            f"query={query} | "
+            f"error={e}"
+        )
 
-            if attempt <= retries:
-                wait_time = attempt * 2
-
-                log_info(
-                    f"Retrying Tavily search | "
-                    f"wait={wait_time}s"
-                )
-
-                time.sleep(wait_time)
-
-            else:
-                log_error(
-                    f"Tavily search failed after retries | "
-                    f"query={query}"
-                )
-
-                # Don't crash the entire workflow.
-                return {
-                    "query": query,
-                    "results": []
-                }
+        # Controlled fallback
+        return {
+            "query": query,
+            "results": []
+        }
