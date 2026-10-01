@@ -1,5 +1,10 @@
 from typing import Dict, Any
 
+from services.quality_config import (
+    get_quality_level,
+    is_auto_approved,
+)
+
 
 class ResourceEvaluator:
     """
@@ -158,7 +163,8 @@ class ResourceEvaluator:
         topic: str = ""
     ) -> Dict[str, Any]:
         """
-        Evaluate a resource using all quality criteria.
+        Evaluate a resource using all quality criteria
+        and configurable quality governance thresholds.
         """
 
         relevance = self.calculate_relevance(topic, resource)
@@ -179,6 +185,10 @@ class ResourceEvaluator:
         # Convert the weighted score from 0.0-1.0 to 0-100.
         overall_score = round(overall_score * 100, 2)
 
+        # Apply configurable quality governance.
+        quality_level = get_quality_level(overall_score)
+        auto_approved = is_auto_approved(overall_score)
+
         return {
             "resource": resource,
             "scores": {
@@ -188,4 +198,6 @@ class ResourceEvaluator:
                 "learning_effectiveness": learning_effectiveness,
             },
             "overall_score": overall_score,
+            "quality_level": quality_level,
+            "auto_approved": auto_approved,
         }

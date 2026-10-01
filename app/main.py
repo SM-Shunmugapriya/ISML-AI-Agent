@@ -18,6 +18,7 @@ from services.resource_repository import (
 from services.embedding_service import generate_embedding
 from app.categorization.categorization_service import categorize_resource
 from services.observability_service import ObservabilityService
+from services.quality_dashboard import get_quality_distribution
 
 
 # Logging setup
@@ -336,3 +337,11 @@ def discover_agent(request: AgentDiscoverRequest):
             status_code=500,
             detail=str(e)
         )
+# Quality governance dashboard endpoint
+@app.get("/api/quality/governance")
+def quality_governance():
+    db = SessionLocal()
+    try:
+        return get_quality_distribution(db)
+    finally:
+        db.close()

@@ -108,6 +108,8 @@ def test_full_evaluation():
     assert "resource" in result
     assert "scores" in result
     assert "overall_score" in result
+    assert "quality_level" in result
+    assert "auto_approved" in result
 
     # Overall score must be between 0 and 100.
     assert 0.0 <= result["overall_score"] <= 100.0
@@ -119,3 +121,33 @@ def test_full_evaluation():
     assert 0.0 <= scores["educational_quality"] <= 1.0
     assert 0.0 <= scores["credibility"] <= 1.0
     assert 0.0 <= scores["learning_effectiveness"] <= 1.0
+
+
+def test_quality_governance():
+    evaluator = ResourceEvaluator()
+
+    resource = {
+        "title": "Python Programming Tutorial",
+        "url": "https://www.python.org/tutorial/",
+        "content": (
+            "Learn Python programming with examples, "
+            "exercises, practice and practical projects."
+        )
+    }
+
+    result = evaluator.evaluate(
+        resource,
+        topic="Python programming"
+    )
+
+    assert result["quality_level"] in [
+        "Excellent",
+        "High Quality",
+        "Acceptable",
+        "Review/Reject",
+    ]
+
+    if result["overall_score"] >= 70:
+        assert result["auto_approved"] is True
+    else:
+        assert result["auto_approved"] is False

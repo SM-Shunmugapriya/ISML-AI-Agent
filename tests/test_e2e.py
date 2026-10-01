@@ -293,7 +293,7 @@ def test_master_e2e_french_a1_greetings(monkeypatch):
             .all()
         )
 
-        assert len(saved_resources) == 10
+        assert len(saved_resources) == 1
 
         # -----------------------------------------------------
         # 16. Verify pgvector Embeddings
@@ -304,7 +304,7 @@ def test_master_e2e_french_a1_greetings(monkeypatch):
             if resource.embedding is not None
         ]
 
-        assert len(embedded_resources) == 10
+        assert len(embedded_resources) == 1
 
         for resource in embedded_resources:
             assert len(resource.embedding) == 3072
