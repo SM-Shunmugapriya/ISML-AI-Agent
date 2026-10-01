@@ -17,6 +17,7 @@ from services.resource_repository import (
 
 from services.embedding_service import generate_embedding
 from app.categorization.categorization_service import categorize_resource
+from services.observability_service import ObservabilityService
 
 
 # Logging setup
@@ -281,15 +282,56 @@ class AgentDiscoverRequest(BaseModel):
 
 @app.post("/api/agent/discover")
 def discover_agent(request: AgentDiscoverRequest):
+    observability = ObservabilityService()
+
     try:
+        # Start workflow observability
+        run_id = observability.start_run(
+            input_data=request.user_query
+        )
+
+        # Execute workflow
         result = agent_workflow.invoke(
             {"user_query": request.user_query}
+        )
+
+        # Record workflow counts when available
+        observability.record_counts(
+            search_count=result.get("search_count", 0),
+            discovered_count=len(result.get("resources", [])),
+            valid_count=result.get("valid_count", 0),
+            evaluated_count=result.get("evaluated_count", 0),
+            ranked_count=result.get("ranked_count", 0),
+            stored_count=result.get("stored_count", 0),
+        )
+
+        # Finish successful workflow run
+        summary = observability.finish_run(
+            status="success"
+        )
+
+        logger.info(
+            f"Workflow completed | run_id={run_id} | "
+            f"duration={summary['duration_seconds']}s"
         )
 
         return result.get("validated_output", result)
 
     except Exception as e:
-        logger.exception("Agent workflow execution failed")
+        logger.exception(
+            "Agent workflow execution failed"
+        )
+
+        # Record workflow error
+        observability.record_error(
+            stage="workflow",
+            error=e
+        )
+
+        observability.finish_run(
+            status="failed"
+        )
+
         raise HTTPException(
             status_code=500,
             detail=str(e)

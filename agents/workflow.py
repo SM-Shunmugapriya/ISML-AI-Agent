@@ -21,23 +21,110 @@ from services.logger import log_info, log_error
 log_info("Initializing ISML AI Agent workflow")
 
 
+def observe_node(node_name, node_function):
+    def wrapped_node(state, config=None):
+        observability = None
+
+        if config:
+            observability = (
+                config.get("configurable", {})
+                .get("observability")
+            )
+
+        if observability is None:
+            return node_function(state)
+
+        observability.start_stage(node_name)
+
+        try:
+            result = node_function(state)
+
+            observability.end_stage(
+                node_name,
+                status="success"
+            )
+
+            return result
+
+        except Exception as e:
+            observability.end_stage(
+                node_name,
+                status="failed",
+                error=e
+            )
+            raise
+
+    return wrapped_node
+
+
 try:
     graph = StateGraph(AgentState)
 
-    # Add workflow nodes
-    graph.add_node("topic_analysis", analyze_topic)
-    graph.add_node("search_strategy", generate_search_strategy)
-    graph.add_node("resource_discovery", discover_resources)
-    graph.add_node("metadata_extraction", extract_resource_metadata)
-    graph.add_node("validation", validate_resources)
-    graph.add_node("deduplication", deduplicate_resources_node)
-    graph.add_node("evaluation", evaluate_resources)
-    graph.add_node("ranking", rank_resources)
-    graph.add_node("categorization", categorize_resources)
-    graph.add_node("learning_sequence", create_learning_sequence)
-    graph.add_node("database_persistence", persist_resources)
-    graph.add_node("embedding", generate_resource_embeddings)
-    graph.add_node("output_validation", validate_final_output)
+    # Add workflow nodes with observability
+    graph.add_node(
+        "topic_analysis",
+        observe_node("topic_analysis", analyze_topic)
+    )
+
+    graph.add_node(
+        "search_strategy",
+        observe_node("search_strategy", generate_search_strategy)
+    )
+
+    graph.add_node(
+        "resource_discovery",
+        observe_node("resource_discovery", discover_resources)
+    )
+
+    graph.add_node(
+        "metadata_extraction",
+        observe_node("metadata_extraction", extract_resource_metadata)
+    )
+
+    graph.add_node(
+        "validation",
+        observe_node("validation", validate_resources)
+    )
+
+    graph.add_node(
+        "deduplication",
+        observe_node("deduplication", deduplicate_resources_node)
+    )
+
+    graph.add_node(
+        "evaluation",
+        observe_node("evaluation", evaluate_resources)
+    )
+
+    graph.add_node(
+        "ranking",
+        observe_node("ranking", rank_resources)
+    )
+
+    graph.add_node(
+        "categorization",
+        observe_node("categorization", categorize_resources)
+    )
+
+    graph.add_node(
+        "learning_sequence",
+        observe_node("learning_sequence", create_learning_sequence)
+    )
+
+    graph.add_node(
+        "database_persistence",
+        observe_node("database_persistence", persist_resources)
+    )
+
+    graph.add_node(
+        "embedding",
+        observe_node("embedding", generate_resource_embeddings)
+    )
+
+    graph.add_node(
+        "output_validation",
+        observe_node("output_validation", validate_final_output)
+    )
 
     # Connect workflow nodes
     graph.add_edge(START, "topic_analysis")
