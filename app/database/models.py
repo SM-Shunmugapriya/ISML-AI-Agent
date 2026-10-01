@@ -29,6 +29,12 @@ class Resource(Base):
         unique=True
     )
 
+    content_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True
+    )
+
     resource_type: Mapped[str] = mapped_column(
         String(50),
         nullable=False

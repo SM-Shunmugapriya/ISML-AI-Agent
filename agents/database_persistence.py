@@ -2,10 +2,14 @@ from typing import List, Dict, Any
 
 from agents.state import AgentState
 from app.database.database import SessionLocal
-from services.dedup_service import normalize_url
+from services.dedup_service import (
+    normalize_url,
+    generate_content_hash,
+)
 from services.resource_repository import (
     create_resource,
     get_resource_by_url,
+    get_resource_by_content_hash,
 )
 from services.logger import log_info, log_error
 
@@ -27,6 +31,7 @@ def persist_resources(state: AgentState) -> AgentState:
 
             title = resource.get("title", "").strip()
             raw_url = resource.get("url", "").strip()
+            content = resource.get("content", "")
 
             if not title or not raw_url:
                 continue
@@ -37,15 +42,27 @@ def persist_resources(state: AgentState) -> AgentState:
             if not url:
                 continue
 
-            # Check whether normalized resource already exists
+            # Generate content hash for idempotency
+            content_hash = generate_content_hash(content)
+
+            # First check normalized URL
             existing_resource = get_resource_by_url(
                 db,
                 url
             )
 
+            # If URL is not found, check content hash
+            if existing_resource is None and content_hash:
+                existing_resource = get_resource_by_content_hash(
+                    db,
+                    content_hash
+                )
+
             if existing_resource:
                 log_info(
-                    f"Resource already exists | url={url}"
+                    f"Resource already exists | "
+                    f"url={url} | "
+                    f"content_hash={content_hash}"
                 )
 
                 persisted_resources.append({
@@ -83,10 +100,8 @@ def persist_resources(state: AgentState) -> AgentState:
                     "description",
                     ""
                 ),
-                content=resource.get(
-                    "content",
-                    ""
-                ),
+                content=content,
+                content_hash=content_hash,
                 relevance_score=scores.get(
                     "relevance"
                 ),

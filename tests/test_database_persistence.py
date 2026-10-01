@@ -167,3 +167,89 @@ def test_persist_resources_handles_duplicate_url():
             db.commit()
 
         db.close()
+
+def test_persist_resources_handles_duplicate_content_hash():
+    test_url_1 = "https://example.com/hash-test-1"
+    test_url_2 = "https://example.com/hash-test-2"
+    test_content = "Same resource content for idempotency testing."
+
+    db = SessionLocal()
+
+    try:
+        for test_url in [test_url_1, test_url_2]:
+            existing = (
+                db.query(Resource)
+                .filter(Resource.url == test_url)
+                .first()
+            )
+
+            if existing:
+                db.delete(existing)
+
+        db.commit()
+
+        state_1 = {
+            "learning_sequence": [
+                {
+                    "title": "Hash Test Resource",
+                    "url": test_url_1,
+                    "resource_type": "web",
+                    "source": "Example",
+                    "category": "Practice",
+                    "content": test_content,
+                }
+            ]
+        }
+
+        state_2 = {
+            "learning_sequence": [
+                {
+                    "title": "Hash Test Resource Duplicate",
+                    "url": test_url_2,
+                    "resource_type": "web",
+                    "source": "Example",
+                    "category": "Practice",
+                    "content": test_content,
+                }
+            ]
+        }
+
+        first_result = persist_resources(state_1)
+
+        first_id = (
+            first_result["persisted_resources"][0]["database_id"]
+        )
+
+        second_result = persist_resources(state_2)
+
+        second_id = (
+            second_result["persisted_resources"][0]["database_id"]
+        )
+
+        assert first_id == second_id
+
+        count = (
+            db.query(Resource)
+            .filter(
+                Resource.content_hash.is_not(None),
+                Resource.content_hash
+                == Resource.content_hash
+            )
+            .count()
+        )
+
+        assert count >= 1
+
+    finally:
+        for test_url in [test_url_1, test_url_2]:
+            existing = (
+                db.query(Resource)
+                .filter(Resource.url == test_url)
+                .first()
+            )
+
+            if existing:
+                db.delete(existing)
+
+        db.commit()
+        db.close()

@@ -13,6 +13,7 @@ def create_resource(
     tags: list | None = None,
     description: str | None = None,
     content: str | None = None,
+    content_hash: str | None = None,
     relevance_score: float | None = None,
     educational_quality: float | None = None,
     credibility: float | None = None,
@@ -29,6 +30,7 @@ def create_resource(
         tags=tags,
         description=description,
         content=content,
+        content_hash=content_hash,
         relevance_score=relevance_score,
         educational_quality=educational_quality,
         credibility=credibility,
@@ -62,6 +64,20 @@ def get_resource_by_url(
     return (
         db.query(Resource)
         .filter(Resource.url == url)
+        .first()
+    )
+
+
+def get_resource_by_content_hash(
+    db: Session,
+    content_hash: str
+):
+    if not content_hash:
+        return None
+
+    return (
+        db.query(Resource)
+        .filter(Resource.content_hash == content_hash)
         .first()
     )
 
