@@ -15,6 +15,7 @@ from agents.database_persistence import persist_resources
 from agents.embedding import generate_resource_embeddings
 from agents.output_validation import validate_final_output
 
+from services.retrieval_strategy import retrieve_existing_knowledge
 from services.logger import log_info, log_error
 
 
@@ -57,6 +58,28 @@ def observe_node(node_name, node_function):
     return wrapped_node
 
 
+def route_after_retrieval(state: AgentState) -> str:
+    """
+    Route to ranking when existing knowledge is sufficient.
+    Otherwise continue with the normal discovery pipeline.
+    """
+
+    if state.get("retrieval_hit", False):
+        log_info(
+            "Retrieval routing decision | "
+            "existing_knowledge_sufficient=True | "
+            "next=ranking"
+        )
+        return "ranking"
+
+    log_info(
+        "Retrieval routing decision | "
+        "existing_knowledge_sufficient=False | "
+        "next=topic_analysis"
+    )
+    return "topic_analysis"
+
+
 try:
     graph = StateGraph(AgentState)
 
@@ -69,6 +92,14 @@ try:
     graph.add_node(
         "search_strategy",
         observe_node("search_strategy", generate_search_strategy)
+    )
+
+    graph.add_node(
+        "retrieval_strategy",
+        observe_node(
+            "retrieval_strategy",
+            retrieve_existing_knowledge
+        )
     )
 
     graph.add_node(
@@ -126,18 +157,70 @@ try:
         observe_node("output_validation", validate_final_output)
     )
 
-    # Connect workflow nodes
-    graph.add_edge(START, "topic_analysis")
+    # ENH-006: Check existing knowledge before any discovery/LLM analysis
+    graph.add_edge(START, "retrieval_strategy")
+
+    graph.add_conditional_edges(
+        "retrieval_strategy",
+        route_after_retrieval,
+        {
+            "ranking": "ranking",
+            "topic_analysis": "topic_analysis",
+        },
+    )
+
+    # Normal discovery path
     graph.add_edge("topic_analysis", "search_strategy")
     graph.add_edge("search_strategy", "resource_discovery")
+
     graph.add_edge("resource_discovery", "metadata_extraction")
     graph.add_edge("metadata_extraction", "validation")
     graph.add_edge("validation", "deduplication")
     graph.add_edge("deduplication", "evaluation")
     graph.add_edge("evaluation", "ranking")
-    graph.add_edge("ranking", "categorization")
+
+    # ENH-006: Reuse existing knowledge without re-categorizing,
+    # persisting, or re-embedding resources.
+    def route_after_ranking(state: AgentState) -> str:
+        if state.get("retrieval_hit", False):
+            log_info(
+                "Retrieval downstream routing | "
+                "existing_knowledge=True | next=learning_sequence"
+            )
+            return "learning_sequence"
+
+        return "categorization"
+
+    def route_after_learning_sequence(state: AgentState) -> str:
+        if state.get("retrieval_hit", False):
+            log_info(
+                "Retrieval completion routing | "
+                "existing_knowledge=True | next=output_validation"
+            )
+            return "output_validation"
+
+        return "database_persistence"
+
+    graph.add_conditional_edges(
+        "ranking",
+        route_after_ranking,
+        {
+            "learning_sequence": "learning_sequence",
+            "categorization": "categorization",
+        },
+    )
+
     graph.add_edge("categorization", "learning_sequence")
-    graph.add_edge("learning_sequence", "database_persistence")
+
+    graph.add_conditional_edges(
+        "learning_sequence",
+        route_after_learning_sequence,
+        {
+            "output_validation": "output_validation",
+            "database_persistence": "database_persistence",
+        },
+    )
+
     graph.add_edge("database_persistence", "embedding")
     graph.add_edge("embedding", "output_validation")
     graph.add_edge("output_validation", END)
@@ -153,3 +236,5 @@ except Exception as e:
         f"Workflow initialization failed | error={e}"
     )
     raise
+
+agent_workflow = app

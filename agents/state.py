@@ -18,6 +18,11 @@ class AgentState(TypedDict, total=False):
     search_tools: List[str]
     search_results: List[Dict[str, Any]]
 
+    # Knowledge retrieval
+    retrieval_hit: bool
+    retrieved_resources: List[Dict[str, Any]]
+    retrieval_coverage: int
+
     # Resource processing
     resources: List[Dict[str, Any]]
     metadata: List[Dict[str, Any]]
