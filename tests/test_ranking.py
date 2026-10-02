@@ -112,11 +112,15 @@ def test_ranking_contains_explanation():
     assert "ranking_explanation" in ranked_resources[1]
 
     assert ranked_resources[0]["ranking_explanation"] == (
-        "Ranked #1 based on a composite quality score of 95.0."
+        "Ranked #1 with a quality score of 95.0. "
+        "The strongest factor is Relevance (0/100), "
+        "contributing to its overall ranking."
     )
 
     assert ranked_resources[1]["ranking_explanation"] == (
-        "Ranked #2 based on a composite quality score of 80.0."
+        "Ranked #2 with a quality score of 80.0. "
+        "The strongest factor is Relevance (0/100), "
+        "contributing to its overall ranking."
     )
 
 

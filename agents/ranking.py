@@ -1,16 +1,20 @@
 from typing import List, Dict, Any
 
 from agents.state import AgentState
+from services.ranking_explainer import RankingExplainer
 from services.logger import log_info, log_error
+
+
+ranking_explainer = RankingExplainer()
+
+TOP_N_EXPLANATIONS = 5
 
 
 def rank_resources(state: AgentState) -> AgentState:
     """
     Rank evaluated educational resources based on their
-    composite quality score.
-
-    The resources are expected to already contain
-    evaluation results from the evaluation stage.
+    composite quality score and generate explanations
+    for the top-ranked resources.
     """
 
     resources = state.get("evaluated_resources", [])
@@ -20,7 +24,6 @@ def rank_resources(state: AgentState) -> AgentState:
     )
 
     try:
-        # Handle empty resource list
         if not resources:
             log_info(
                 "Resource ranking completed | no resources available"
@@ -31,31 +34,36 @@ def rank_resources(state: AgentState) -> AgentState:
                 "ranked_resources": [],
             }
 
-        # Rank resources by composite quality score
-        # from highest to lowest.
         ranked_resources: List[Dict[str, Any]] = sorted(
             resources,
             key=lambda item: item.get("overall_score", 0.0),
             reverse=True,
         )
 
-        # Assign rank and ranking explanation
         for index, resource in enumerate(
             ranked_resources,
             start=1,
         ):
-            score = resource.get("overall_score", 0.0)
-
             resource["rank"] = index
 
-            resource["ranking_explanation"] = (
-                f"Ranked #{index} based on a composite "
-                f"quality score of {score}."
-            )
+            if index <= TOP_N_EXPLANATIONS:
+                explanation = ranking_explainer.generate_explanation(
+                    resource,
+                    index,
+                )
+
+                resource["ranking_factors"] = (
+                    explanation["factor_breakdown"]
+                )
+
+                resource["ranking_explanation"] = (
+                    explanation["ranking_explanation"]
+                )
 
         log_info(
             f"Resource ranking completed | "
-            f"ranked_count={len(ranked_resources)}"
+            f"ranked_count={len(ranked_resources)} | "
+            f"explained_top_n={min(len(ranked_resources), TOP_N_EXPLANATIONS)}"
         )
 
         return {
