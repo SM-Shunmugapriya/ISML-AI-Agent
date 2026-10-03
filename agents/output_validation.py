@@ -55,11 +55,13 @@ def validate_final_output(state: AgentState) -> AgentState:
     topic = state.get("topic", "")
     resources = state.get("categorized_resources", [])
     learning_sequence = state.get("learning_sequence", [])
+    workflow_run_id = state.get("workflow_run_id")
 
     log_info(
         f"Final output validation started | "
         f"resources_count={len(resources)} | "
-        f"sequence_count={len(learning_sequence)}"
+        f"sequence_count={len(learning_sequence)} | "
+        f"workflow_run_id={workflow_run_id}"
     )
 
     recommended_resources = [
@@ -83,7 +85,9 @@ def validate_final_output(state: AgentState) -> AgentState:
             validated_output = FinalOutput.model_validate(output_data)
 
             log_info(
-                f"Final output validation successful | attempt={attempt}"
+                f"Final output validation successful | "
+                f"attempt={attempt} | "
+                f"workflow_run_id={workflow_run_id}"
             )
 
             return {
@@ -96,7 +100,9 @@ def validate_final_output(state: AgentState) -> AgentState:
         except ValidationError as e:
             log_error(
                 f"Final output validation failed | "
-                f"attempt={attempt} | error={e}"
+                f"attempt={attempt} | "
+                f"workflow_run_id={workflow_run_id} | "
+                f"error={e}"
             )
 
             if attempt >= MAX_REPAIR_ATTEMPTS:
@@ -107,9 +113,20 @@ def validate_final_output(state: AgentState) -> AgentState:
 
             log_info(
                 f"Attempting final output repair | "
-                f"attempt={attempt}"
+                f"attempt={attempt} | "
+                f"workflow_run_id={workflow_run_id}"
             )
 
-            output_data = repair_output(output_data)
+            # Pass workflow_run_id for ENH-007 cost tracking.
+            # Keep compatibility with existing tests/mocks.
+            if workflow_run_id:
+                output_data = repair_output(
+                    output_data,
+                    workflow_run_id=workflow_run_id,
+                )
+            else:
+                output_data = repair_output(
+                    output_data
+                )
 
     raise ValueError("Final output validation failed")

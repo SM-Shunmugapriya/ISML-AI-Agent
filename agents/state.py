@@ -2,6 +2,9 @@ from typing import TypedDict, List, Dict, Any
 
 
 class AgentState(TypedDict, total=False):
+    # Workflow
+    workflow_run_id: str
+
     # User input
     user_query: str
     domain: str

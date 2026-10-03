@@ -7,6 +7,7 @@ from services.llm_service import ask_llm
 def repair_output(
     output_data: Dict[str, Any],
     provider: str = "gemini",
+    workflow_run_id: str | None = None,
 ) -> Dict[str, Any]:
     """
     Repair invalid final output using the LLM and validate
@@ -66,11 +67,24 @@ Original invalid output:
 Return ONLY the repaired JSON object.
 """
 
-    repaired_output = ask_llm(prompt, provider=provider)
+    if workflow_run_id:
+        repaired_output = ask_llm(
+            prompt,
+            provider=provider,
+            workflow_run_id=workflow_run_id,
+        )
+    else:
+        # Keep compatibility with existing tests/callers
+        repaired_output = ask_llm(
+            prompt,
+            provider=provider,
+        )
 
     if not isinstance(repaired_output, dict):
-        raise ValueError("LLM repair response is not a dictionary")
+        raise ValueError(
+            "LLM repair response is not a dictionary"
+        )
 
-    
-
-    return FinalOutput.model_validate(repaired_output).model_dump()
+    return FinalOutput.model_validate(
+        repaired_output
+    ).model_dump()

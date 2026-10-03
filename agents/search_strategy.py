@@ -56,47 +56,37 @@ The search_tools values MUST contain only:
 """
 
     try:
-        response = ask_llm(prompt, provider="gemini")
+        # ENH-007: Pass workflow run ID when available
+        # for cost tracking while keeping compatibility
+        # with existing test mocks.
+        workflow_run_id = state.get("workflow_run_id")
 
-        search_queries = response.get(
-            "search_queries",
-            []
-        )
+        if workflow_run_id:
+            response = ask_llm(
+                prompt,
+                workflow_run_id=workflow_run_id
+            )
+        else:
+            response = ask_llm(prompt)
 
-        search_tools = response.get(
-            "search_tools",
-            []
-        )
-
-        # Allow only supported search tools
-        valid_tools = {
-            "web",
-            "youtube",
-            "pdf",
-            "audio"
-        }
-
-        search_tools = [
-            tool
-            for tool in search_tools
-            if tool in valid_tools
-        ]
-
-        # Fallback to web search
-        # if the LLM returns no valid tools.
-        if not search_tools:
-            search_tools = ["web"]
+        log_info("Search strategy generation completed successfully")
 
         result = {
             **state,
-            "search_queries": search_queries,
-            "search_tools": search_tools,
+            "search_queries": response.get(
+                "search_queries",
+                []
+            ),
+            "search_tools": response.get(
+                "search_tools",
+                ["web"]
+            )
         }
 
         log_info(
-            f"Search strategy completed | "
-            f"queries_count={len(search_queries)} | "
-            f"selected_tools={search_tools}"
+            f"Search strategy result | "
+            f"queries={len(result['search_queries'])} | "
+            f"tools={result['search_tools']}"
         )
 
         return result

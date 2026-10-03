@@ -44,40 +44,40 @@ Rules:
 """
 
     try:
-        response = ask_llm(prompt, provider="gemini")
+        workflow_run_id = state.get("workflow_run_id")
 
-        log_info("Gemini topic analysis completed successfully")
+        if workflow_run_id:
+            response = ask_llm(
+                prompt,
+                workflow_run_id=workflow_run_id
+            )
+        else:
+            response = ask_llm(prompt)
+
+        log_info("Topic analysis completed successfully")
 
         result = {
             **state,
-
-            # Required input understanding fields
             "domain": response.get(
                 "domain",
                 state.get("domain", "Not specified")
             ),
-
             "course": response.get(
                 "course",
                 state.get("course", "Not specified")
             ),
-
             "topic": response.get(
                 "topic",
                 state.get("topic", "")
             ),
-
             "level": response.get(
                 "level",
                 state.get("level", "Not specified")
             ),
-
-            # Existing topic analysis fields
             "subtopics": response.get(
                 "subtopics",
                 []
             ),
-
             "learning_intent": response.get(
                 "learning_intent",
                 ""

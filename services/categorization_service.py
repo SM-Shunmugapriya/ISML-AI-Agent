@@ -17,7 +17,11 @@ CATEGORIES = [
 ]
 
 
-def categorize_resource(resource: dict, provider: str = "gemini") -> str:
+def categorize_resource(
+    resource: dict,
+    provider: str = "gemini",
+    workflow_run_id: str | None = None,
+) -> str:
     """
     Assign a pedagogical category to an academic resource.
 
@@ -72,11 +76,17 @@ Return only the category name.
 """
 
     log_info(
-        f"Categorization started | title={title}"
+        f"Categorization started | "
+        f"title={title} | "
+        f"workflow_run_id={workflow_run_id}"
     )
 
     try:
-        response = ask_llm(prompt, provider=provider)
+        response = ask_llm(
+            prompt,
+            provider=provider,
+            workflow_run_id=workflow_run_id,
+        )
 
         if isinstance(response, dict):
             category = (
@@ -98,7 +108,9 @@ Return only the category name.
             if category.lower() == allowed_category.lower():
                 log_info(
                     f"Categorization successful | "
-                    f"title={title} | category={allowed_category}"
+                    f"title={title} | "
+                    f"category={allowed_category} | "
+                    f"workflow_run_id={workflow_run_id}"
                 )
                 return allowed_category
 
@@ -109,7 +121,9 @@ Return only the category name.
             if allowed_category.lower() in category_lower:
                 log_info(
                     f"Categorization normalized | "
-                    f"title={title} | category={allowed_category}"
+                    f"title={title} | "
+                    f"category={allowed_category} | "
+                    f"workflow_run_id={workflow_run_id}"
                 )
                 return allowed_category
 
@@ -120,7 +134,9 @@ Return only the category name.
     except Exception as e:
         log_warning(
             f"Categorization failed | "
-            f"title={title} | error={e}"
+            f"title={title} | "
+            f"workflow_run_id={workflow_run_id} | "
+            f"error={e}"
         )
 
         # Safe deterministic fallback
@@ -128,7 +144,9 @@ Return only the category name.
 
         log_info(
             f"Categorization fallback | "
-            f"title={title} | category={fallback_category}"
+            f"title={title} | "
+            f"category={fallback_category} | "
+            f"workflow_run_id={workflow_run_id}"
         )
 
         return fallback_category
@@ -156,7 +174,6 @@ def deterministic_category(resource: dict) -> str:
     text = f"{title} {summary} {keywords_text}"
 
     # Assessment is intentionally checked first.
-    # Example: "English Grammar Test" -> Assessment
     keyword_rules = {
         "Assessment": [
             "assessment",

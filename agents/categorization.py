@@ -12,10 +12,12 @@ def categorize_resources(state: AgentState) -> AgentState:
     """
 
     resources = state.get("ranked_resources", [])
+    workflow_run_id = state.get("workflow_run_id")
 
     log_info(
         f"Resource categorization started | "
-        f"resources_count={len(resources)}"
+        f"resources_count={len(resources)} | "
+        f"workflow_run_id={workflow_run_id}"
     )
 
     categorized_resources: List[Dict[str, Any]] = []
@@ -33,7 +35,16 @@ def categorize_resources(state: AgentState) -> AgentState:
             }
 
         for resource in resources:
-            category = categorize_resource(resource)
+
+            # Pass workflow_run_id only when available.
+            # This keeps existing unit-test mocks compatible.
+            if workflow_run_id:
+                category = categorize_resource(
+                    resource,
+                    workflow_run_id=workflow_run_id,
+                )
+            else:
+                category = categorize_resource(resource)
 
             categorized_resource = {
                 **resource,
@@ -47,12 +58,14 @@ def categorize_resources(state: AgentState) -> AgentState:
             log_info(
                 f"Resource categorized | "
                 f"title={resource.get('title', '')} | "
-                f"category={category}"
+                f"category={category} | "
+                f"workflow_run_id={workflow_run_id}"
             )
 
         log_info(
             f"Resource categorization completed | "
-            f"categorized_count={len(categorized_resources)}"
+            f"categorized_count={len(categorized_resources)} | "
+            f"workflow_run_id={workflow_run_id}"
         )
 
         return {
@@ -62,6 +75,8 @@ def categorize_resources(state: AgentState) -> AgentState:
 
     except Exception as e:
         log_error(
-            f"Resource categorization failed | error={e}"
+            f"Resource categorization failed | "
+            f"workflow_run_id={workflow_run_id} | "
+            f"error={e}"
         )
         raise
