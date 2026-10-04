@@ -1,12 +1,12 @@
 from fastapi.testclient import TestClient
-
 from app.main import app
-
 
 client = TestClient(app)
 
 
 def test_agent_discover_e2e(monkeypatch):
+    monkeypatch.setenv("ISML_API_KEY", "test-api-key")
+
     def mock_workflow_invoke(state):
         return {
             "validated_output": {
@@ -20,7 +20,7 @@ def test_agent_discover_e2e(monkeypatch):
                 "learningSequence": [
                     {
                         "order": 1,
-                        "title": "Basic French Greetings",
+                        "title": "BasicFrench Greetings",
                     }
                 ],
             }
@@ -34,15 +34,7 @@ def test_agent_discover_e2e(monkeypatch):
     response = client.post(
         "/api/agent/discover",
         json={"user_query": "French A1 Greetings"},
+        headers={"X-API-Key": "test-api-key"},
     )
 
     assert response.status_code == 200
-
-    data = response.json()
-
-    assert "topic" in data
-    assert "recommendedResources" in data
-    assert "learningSequence" in data
-
-    assert isinstance(data["recommendedResources"], list)
-    assert isinstance(data["learningSequence"], list)

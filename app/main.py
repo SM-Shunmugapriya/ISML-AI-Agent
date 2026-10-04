@@ -1,11 +1,18 @@
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 
 from app.database.init_db import init_db
 from app.database.database import SessionLocal
+from app.security.auth import require_api_key
+from app.security.url_validator import validate_external_url
 
 from services.resource_repository import (
     create_resource,
@@ -21,24 +28,25 @@ from services.observability_service import ObservabilityService
 from services.quality_dashboard import get_quality_distribution
 
 
-# Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+limiter = Limiter(key_func=get_remote_address)
 
-# FastAPI application
 app = FastAPI(
     title="ISML AI Agent",
     description="Academic Resource Intelligence Agent",
     version="1.0.0"
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(
+    RateLimitExceeded,
+    _rate_limit_exceeded_handler
+)
 
-# Initialize database
 init_db()
 
-
-# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -48,7 +56,6 @@ app.add_middleware(
 )
 
 
-# Resource request model
 class ResourceCreate(BaseModel):
     title: str
     url: str
@@ -62,8 +69,14 @@ class ResourceCreate(BaseModel):
     learning_effectiveness: float | None = None
     overall_score: float | None = None
 
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str) -> str:
+        if not validate_external_url(value):
+            raise ValueError("Invalid or unsafe external URL")
+        return value
 
-# Root endpoint
+
 @app.get("/")
 def home():
     logger.info("Home endpoint called")
@@ -72,7 +85,6 @@ def home():
     }
 
 
-# Health endpoint
 @app.get("/health")
 def health():
     logger.info("Health check called")
@@ -82,13 +94,16 @@ def health():
     }
 
 
-# Create resource
 @app.post("/resources")
-def add_resource(resource: ResourceCreate):
+@limiter.limit("30/minute")
+def add_resource(
+    request: Request,
+    resource: ResourceCreate,
+    _: bool = Depends(require_api_key)
+):
     db = SessionLocal()
 
     try:
-        # Categorize resource using metadata and content
         category_result = categorize_resource(
             metadata={
                 "title": resource.title,
@@ -102,7 +117,6 @@ def add_resource(resource: ResourceCreate):
         category = category_result["category"]
         confidence = category_result["confidence"]
 
-        # Store resource with generated category
         new_resource = create_resource(
             db=db,
             title=resource.title,
@@ -133,9 +147,12 @@ def add_resource(resource: ResourceCreate):
         db.close()
 
 
-# Get all resources
 @app.get("/resources")
-def list_resources():
+@limiter.limit("30/minute")
+def list_resources(
+    request: Request,
+    _: bool = Depends(require_api_key)
+):
     db = SessionLocal()
 
     try:
@@ -159,12 +176,13 @@ def list_resources():
         db.close()
 
 
-# Knowledge retrieval endpoint
-# IMPORTANT: This route must come before /resources/{resource_id}
 @app.get("/resources/search")
+@limiter.limit("30/minute")
 def search_resources(
+    request: Request,
     query: str,
-    limit: int = 5
+    limit: int = 5,
+    _: bool = Depends(require_api_key)
 ):
     db = SessionLocal()
 
@@ -181,10 +199,8 @@ def search_resources(
                 detail="Limit must be between 1 and 20"
             )
 
-        # Generate embedding for user query
         query_embedding = generate_embedding(query)
 
-        # Find semantically similar resources
         results = search_similar_resources(
             db=db,
             query_embedding=query_embedding,
@@ -215,9 +231,13 @@ def search_resources(
         db.close()
 
 
-# Get resource by ID
 @app.get("/resources/{resource_id}")
-def get_resource(resource_id: int):
+@limiter.limit("30/minute")
+def get_resource(
+    request: Request,
+    resource_id: int,
+    _: bool = Depends(require_api_key)
+):
     db = SessionLocal()
 
     try:
@@ -250,9 +270,13 @@ def get_resource(resource_id: int):
         db.close()
 
 
-# Delete resource
 @app.delete("/resources/{resource_id}")
-def remove_resource(resource_id: int):
+@limiter.limit("30/minute")
+def remove_resource(
+    request: Request,
+    resource_id: int,
+    _: bool = Depends(require_api_key)
+):
     db = SessionLocal()
 
     try:
@@ -273,7 +297,6 @@ def remove_resource(resource_id: int):
         db.close()
 
 
-# Agent workflow
 from agents.workflow import app as agent_workflow
 
 
@@ -282,21 +305,23 @@ class AgentDiscoverRequest(BaseModel):
 
 
 @app.post("/api/agent/discover")
-def discover_agent(request: AgentDiscoverRequest):
+@limiter.limit("10/minute")
+def discover_agent(
+    request: Request,
+    request_data: AgentDiscoverRequest,
+    _: bool = Depends(require_api_key)
+):
     observability = ObservabilityService()
 
     try:
-        # Start workflow observability
         run_id = observability.start_run(
-            input_data=request.user_query
+            input_data=request_data.user_query
         )
 
-        # Execute workflow
         result = agent_workflow.invoke(
-            {"user_query": request.user_query}
+            {"user_query": request_data.user_query}
         )
 
-        # Record workflow counts when available
         observability.record_counts(
             search_count=result.get("search_count", 0),
             discovered_count=len(result.get("resources", [])),
@@ -306,7 +331,6 @@ def discover_agent(request: AgentDiscoverRequest):
             stored_count=result.get("stored_count", 0),
         )
 
-        # Finish successful workflow run
         summary = observability.finish_run(
             status="success"
         )
@@ -323,7 +347,6 @@ def discover_agent(request: AgentDiscoverRequest):
             "Agent workflow execution failed"
         )
 
-        # Record workflow error
         observability.record_error(
             stage="workflow",
             error=e
@@ -337,11 +360,20 @@ def discover_agent(request: AgentDiscoverRequest):
             status_code=500,
             detail=str(e)
         )
-# Quality governance dashboard endpoint
+
+
 @app.get("/api/quality/governance")
-def quality_governance():
+@limiter.limit("30/minute")
+def quality_governance(
+    request: Request,
+    _: bool = Depends(require_api_key)
+):
     db = SessionLocal()
+
     try:
         return get_quality_distribution(db)
+
     finally:
         db.close()
+
+
