@@ -9,7 +9,7 @@ def test_llm_retries_up_to_three_attempts():
         "services.llm_service.get_cached",
         return_value=None,
     ), patch(
-        "services.llm_service.ask_gemini",
+        "providers.gemini_provider.GeminiProvider.generate",
         side_effect=[
             ValueError("Invalid LLM output"),
             ValueError("Invalid LLM output"),
@@ -32,7 +32,7 @@ def test_llm_fails_after_three_attempts():
         "services.llm_service.get_cached",
         return_value=None,
     ), patch(
-        "services.llm_service.ask_gemini",
+        "providers.gemini_provider.GeminiProvider.generate",
         side_effect=ValueError("Invalid LLM output"),
     ) as mock_llm:
 

@@ -1,11 +1,6 @@
-from services.deepseek_service import (
-    ask_deepseek,
-    get_last_usage as get_deepseek_usage,
-)
-from services.gemini_service import (
-    ask_gemini,
-    get_last_usage as get_gemini_usage,
-)
+import os
+import hashlib
+
 from services.logger import log_info
 from services.model_router import model_router
 from services.llm_cache import llm_cache
@@ -15,7 +10,7 @@ from services.resilience_service import (
     CircuitBreaker,
 )
 
-import hashlib
+from providers.provider_factory import get_provider
 
 
 LLM_CIRCUIT_BREAKER = CircuitBreaker(
@@ -30,15 +25,11 @@ def create_cache_key(prompt: str, provider: str) -> str:
 
 # Backward compatibility for existing tests/callers.
 def get_cached(prompt: str, provider: str):
-    model = (
-        "gemini-3.6-flash"
-        if provider == "gemini"
-        else "deepseek-chat"
-    )
+    llm_provider = get_provider(provider)
 
     return llm_cache.get(
-        provider=provider,
-        model=model,
+        provider=llm_provider.name,
+        model=llm_provider.model,
         prompt=prompt,
     )
 
@@ -49,26 +40,40 @@ def ask_llm(
     workflow_run_id: str | None = None,
 ) -> dict:
 
-    # ENH-007: Automatically select the cheapest
-    # capable model when provider is not explicitly given.
+    # ENH-008:
+    # Use configured provider when LLM_PROVIDER is set.
+    # Otherwise fall back to ENH-007 model routing.
     if provider is None:
-        route = model_router.route(prompt)
-        provider = route.provider
+        configured_provider = os.getenv("LLM_PROVIDER")
 
-        log_info(
-            f"Model routing | "
-            f"provider={route.provider} | "
-            f"model={route.model} | "
-            f"reason={route.reason}"
-        )
+        if configured_provider:
+            provider = configured_provider.strip().lower()
+
+            log_info(
+                f"Configured LLM provider selected | "
+                f"provider={provider}"
+            )
+
+        else:
+            # ENH-007: Automatically select the cheapest
+            # capable model when no provider is configured.
+            route = model_router.route(prompt)
+            provider = route.provider
+
+            log_info(
+                f"Model routing | "
+                f"provider={route.provider} | "
+                f"model={route.model} | "
+                f"reason={route.reason}"
+            )
+
+    # ENH-008: Resolve provider through the abstraction.
+    llm_provider = get_provider(provider)
+
+    provider = llm_provider.name
+    model = llm_provider.model
 
     # ENH-007: LLM cache
-    model = (
-        "gemini-3.6-flash"
-        if provider == "gemini"
-        else "deepseek-chat"
-    )
-
     cached_response = get_cached(
         prompt=prompt,
         provider=provider,
@@ -85,21 +90,14 @@ def ask_llm(
     )
 
     log_info(
-        f"LLM request started | provider={provider}"
+        f"LLM request started | "
+        f"provider={provider} | "
+        f"model={model}"
     )
 
-    if provider == "deepseek":
-        api_call = ask_deepseek
-        get_usage = get_deepseek_usage
-
-    elif provider == "gemini":
-        api_call = ask_gemini
-        get_usage = get_gemini_usage
-
-    else:
-        raise ValueError(
-            f"Unsupported LLM provider: {provider}"
-        )
+    # ENH-008: Provider abstraction.
+    api_call = llm_provider.generate
+    get_usage = llm_provider.get_usage
 
     resilient_api_call = retry_with_backoff(
         max_retries=3,
