@@ -1,5 +1,5 @@
 import logging
-
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
@@ -26,6 +26,12 @@ from services.embedding_service import generate_embedding
 from app.categorization.categorization_service import categorize_resource
 from services.observability_service import ObservabilityService
 from services.quality_dashboard import get_quality_distribution
+from services.freshness_scheduler import (
+    start_freshness_scheduler,
+    stop_freshness_scheduler,
+)
+
+from agents.workflow import app as agent_workflow
 
 
 logging.basicConfig(level=logging.INFO)
@@ -36,16 +42,19 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
     title="ISML AI Agent",
     description="Academic Resource Intelligence Agent",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 app.state.limiter = limiter
 app.add_exception_handler(
     RateLimitExceeded,
-    _rate_limit_exceeded_handler
+    _rate_limit_exceeded_handler,
 )
 
 init_db()
+
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -90,7 +99,7 @@ def health():
     logger.info("Health check called")
     return {
         "status": "healthy",
-        "service": "ISML AI Agent"
+        "service": "ISML AI Agent",
     }
 
 
@@ -99,7 +108,7 @@ def health():
 def add_resource(
     request: Request,
     resource: ResourceCreate,
-    _: bool = Depends(require_api_key)
+    _: bool = Depends(require_api_key),
 ):
     db = SessionLocal()
 
@@ -141,6 +150,10 @@ def add_resource(
             "category": new_resource.category,
             "confidence": confidence,
             "overall_score": new_resource.overall_score,
+            "created_at": new_resource.created_at,
+            "updated_at": new_resource.updated_at,
+            "last_verified_at": new_resource.last_verified_at,
+            "availability_status": new_resource.availability_status,
         }
 
     finally:
@@ -151,7 +164,7 @@ def add_resource(
 @limiter.limit("30/minute")
 def list_resources(
     request: Request,
-    _: bool = Depends(require_api_key)
+    _: bool = Depends(require_api_key),
 ):
     db = SessionLocal()
 
@@ -168,6 +181,10 @@ def list_resources(
                 "category": resource.category,
                 "description": resource.description,
                 "overall_score": resource.overall_score,
+                "created_at": resource.created_at,
+                "updated_at": resource.updated_at,
+                "last_verified_at": resource.last_verified_at,
+                "availability_status": resource.availability_status,
             }
             for resource in resources
         ]
@@ -182,7 +199,7 @@ def search_resources(
     request: Request,
     query: str,
     limit: int = 5,
-    _: bool = Depends(require_api_key)
+    _: bool = Depends(require_api_key),
 ):
     db = SessionLocal()
 
@@ -190,13 +207,13 @@ def search_resources(
         if not query.strip():
             raise HTTPException(
                 status_code=400,
-                detail="Query cannot be empty"
+                detail="Query cannot be empty",
             )
 
         if limit < 1 or limit > 20:
             raise HTTPException(
                 status_code=400,
-                detail="Limit must be between 1 and 20"
+                detail="Limit must be between 1 and 20",
             )
 
         query_embedding = generate_embedding(query)
@@ -204,7 +221,7 @@ def search_resources(
         results = search_similar_resources(
             db=db,
             query_embedding=query_embedding,
-            limit=limit
+            limit=limit,
         )
 
         return {
@@ -219,6 +236,10 @@ def search_resources(
                     "source": resource.source,
                     "category": resource.category,
                     "description": resource.description,
+                    "created_at": resource.created_at,
+                    "updated_at": resource.updated_at,
+                    "last_verified_at": resource.last_verified_at,
+                    "availability_status": resource.availability_status,
                     "similarity_distance": round(
                         float(distance), 4
                     ),
@@ -236,7 +257,7 @@ def search_resources(
 def get_resource(
     request: Request,
     resource_id: int,
-    _: bool = Depends(require_api_key)
+    _: bool = Depends(require_api_key),
 ):
     db = SessionLocal()
 
@@ -246,7 +267,7 @@ def get_resource(
         if resource is None:
             raise HTTPException(
                 status_code=404,
-                detail="Resource not found"
+                detail="Resource not found",
             )
 
         return {
@@ -264,6 +285,9 @@ def get_resource(
             "learning_effectiveness": resource.learning_effectiveness,
             "overall_score": resource.overall_score,
             "created_at": resource.created_at,
+            "updated_at": resource.updated_at,
+            "last_verified_at": resource.last_verified_at,
+            "availability_status": resource.availability_status,
         }
 
     finally:
@@ -275,7 +299,7 @@ def get_resource(
 def remove_resource(
     request: Request,
     resource_id: int,
-    _: bool = Depends(require_api_key)
+    _: bool = Depends(require_api_key),
 ):
     db = SessionLocal()
 
@@ -285,7 +309,7 @@ def remove_resource(
         if not deleted:
             raise HTTPException(
                 status_code=404,
-                detail="Resource not found"
+                detail="Resource not found",
             )
 
         return {
@@ -297,9 +321,6 @@ def remove_resource(
         db.close()
 
 
-from agents.workflow import app as agent_workflow
-
-
 class AgentDiscoverRequest(BaseModel):
     user_query: str
 
@@ -309,7 +330,7 @@ class AgentDiscoverRequest(BaseModel):
 def discover_agent(
     request: Request,
     request_data: AgentDiscoverRequest,
-    _: bool = Depends(require_api_key)
+    _: bool = Depends(require_api_key),
 ):
     observability = ObservabilityService()
 
@@ -343,22 +364,18 @@ def discover_agent(
         return result.get("validated_output", result)
 
     except Exception as e:
-        logger.exception(
-            "Agent workflow execution failed"
-        )
+        logger.exception("Agent workflow execution failed")
 
         observability.record_error(
             stage="workflow",
-            error=e
+            error=e,
         )
 
-        observability.finish_run(
-            status="failed"
-        )
+        observability.finish_run(status="failed")
 
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail=str(e),
         )
 
 
@@ -366,7 +383,7 @@ def discover_agent(
 @limiter.limit("30/minute")
 def quality_governance(
     request: Request,
-    _: bool = Depends(require_api_key)
+    _: bool = Depends(require_api_key),
 ):
     db = SessionLocal()
 
@@ -375,5 +392,3 @@ def quality_governance(
 
     finally:
         db.close()
-
-
