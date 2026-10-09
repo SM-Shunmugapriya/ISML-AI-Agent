@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -12,92 +12,34 @@ from app.database.database import Base
 class Resource(Base):
     __tablename__ = "resources"
 
-    id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-        index=True
-    )
-
-    title: Mapped[str] = mapped_column(
-        String(500),
-        nullable=False
-    )
-
-    url: Mapped[str] = mapped_column(
-        String(1000),
-        nullable=False,
-        unique=True
-    )
-
-    content_hash: Mapped[str | None] = mapped_column(
-        String(64),
-        nullable=True,
-        index=True
-    )
-
-    resource_type: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False
-    )
-
-    source: Mapped[str] = mapped_column(
-        String(100),
-        nullable=False
-    )
-
-    category: Mapped[str | None] = mapped_column(
-        String(100),
-        nullable=True
-    )
-
-    tags: Mapped[list | None] = mapped_column(
-        JSONB,
-        nullable=True
-    )
-
-    description: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True
-    )
-
-    content: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True
-    )
-
-    relevance_score: Mapped[float | None] = mapped_column(
-        Float,
-        nullable=True
-    )
-
-    educational_quality: Mapped[float | None] = mapped_column(
-        Float,
-        nullable=True
-    )
-
-    credibility: Mapped[float | None] = mapped_column(
-        Float,
-        nullable=True
-    )
-
-    learning_effectiveness: Mapped[float | None] = mapped_column(
-        Float,
-        nullable=True
-    )
-
-    overall_score: Mapped[float | None] = mapped_column(
-        Float,
-        nullable=True
-    )
-
-    embedding: Mapped[list[float] | None] = mapped_column(
-        Vector(3072),
-        nullable=True
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    url: Mapped[str] = mapped_column(String(1000), nullable=False, unique=True)
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    source: Mapped[str] = mapped_column(String(100), nullable=False)
+    category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    tags: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    relevance_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    educational_quality: Mapped[float | None] = mapped_column(Float, nullable=True)
+    credibility: Mapped[float | None] = mapped_column(Float, nullable=True)
+    learning_effectiveness: Mapped[float | None] = mapped_column(Float, nullable=True)
+    overall_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(3072), nullable=True)
 
     processing_status: Mapped[str] = mapped_column(
         String(50),
         default="pending",
+        nullable=False
+    )
+
+    # ENH-010: Resource lifecycle status
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="DISCOVERED",
+        server_default="DISCOVERED",
         nullable=False
     )
 
@@ -106,3 +48,27 @@ class Resource(Base):
         default=datetime.utcnow,
         nullable=False
     )
+
+
+# ENH-010: Track resource lifecycle status changes
+class ResourceLifecycleEvent(Base):
+    __tablename__ = "resource_lifecycle_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    resource_id: Mapped[int] = mapped_column(
+        ForeignKey("resources.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    from_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    to_status: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    changed_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)

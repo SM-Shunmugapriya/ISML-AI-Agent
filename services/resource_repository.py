@@ -120,7 +120,10 @@ def search_similar_resources(
             Resource,
             distance.label("distance")
         )
-        .filter(Resource.embedding.is_not(None))
+        .filter(
+            Resource.embedding.is_not(None),
+            Resource.status.notin_(["ARCHIVED", "UNAVAILABLE"]),
+        )
         .order_by(distance)
         .limit(limit)
         .all()
