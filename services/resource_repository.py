@@ -1,6 +1,9 @@
+from datetime import datetime
+
 from sqlalchemy.orm import Session
 
 from app.database.models import Resource
+from services.freshness_checker import check_resource_availability
 
 
 def create_resource(
@@ -37,6 +40,8 @@ def create_resource(
         learning_effectiveness=learning_effectiveness,
         overall_score=overall_score,
         processing_status=processing_status,
+        availability_status=check_resource_availability(url),
+        last_verified_at=datetime.utcnow(),
     )
 
     db.add(resource)
