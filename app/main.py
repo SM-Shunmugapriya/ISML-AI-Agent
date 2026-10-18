@@ -1,5 +1,7 @@
+from pathlib import Path
 import logging
 from contextlib import asynccontextmanager
+from fastapi.responses import HTMLResponse
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
@@ -26,6 +28,8 @@ from services.embedding_service import generate_embedding
 from app.categorization.categorization_service import categorize_resource
 from services.observability_service import ObservabilityService
 from services.quality_dashboard import get_quality_distribution
+from services.quality_config import REVIEW_CONFIDENCE_THRESHOLD
+from services.review_queue import get_pending_reviews, review_resource
 from services.freshness_scheduler import (
     start_freshness_scheduler,
     stop_freshness_scheduler,
@@ -86,6 +90,20 @@ class ResourceCreate(BaseModel):
         return value
 
 
+class ReviewDecision(BaseModel):
+    decision: str
+    reviewer: str
+    comment: str | None = None
+
+    @field_validator("reviewer")
+    @classmethod
+    def validate_reviewer(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Reviewer cannot be empty")
+        return value
+
+
 @app.get("/")
 def home():
     logger.info("Home endpoint called")
@@ -140,6 +158,12 @@ def add_resource(
             credibility=resource.credibility,
             learning_effectiveness=resource.learning_effectiveness,
             overall_score=resource.overall_score,
+            review_confidence=confidence,
+            review_status=(
+                "PENDING"
+                if confidence < REVIEW_CONFIDENCE_THRESHOLD
+                else "APPROVED"
+            ),
         )
 
         return {
@@ -149,6 +173,7 @@ def add_resource(
             "url": new_resource.url,
             "category": new_resource.category,
             "confidence": confidence,
+            "review_status": new_resource.review_status,
             "overall_score": new_resource.overall_score,
             "created_at": new_resource.created_at,
             "updated_at": new_resource.updated_at,
@@ -392,3 +417,68 @@ def quality_governance(
 
     finally:
         db.close()
+
+@app.get("/api/review-queue")
+@limiter.limit("30/minute")
+def list_review_queue(
+    request: Request,
+    _: bool = Depends(require_api_key),
+):
+    db = SessionLocal()
+    try:
+        resources = get_pending_reviews(db)
+        return {
+            "count": len(resources),
+            "items": [
+                {
+                    "id": item.id,
+                    "title": item.title,
+                    "url": item.url,
+                    "category": item.category,
+                    "confidence": item.review_confidence,
+                    "status": item.review_status,
+                }
+                for item in resources
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.post("/api/review-queue/{resource_id}/decision")
+@limiter.limit("30/minute")
+def decide_resource_review(
+    request: Request,
+    resource_id: int,
+    data: ReviewDecision,
+    _: bool = Depends(require_api_key),
+):
+    db = SessionLocal()
+    try:
+        item = review_resource(
+            db=db,
+            resource_id=resource_id,
+            decision=data.decision,
+            reviewer=data.reviewer,
+            comment=data.comment,
+        )
+        return {
+            "message": "Review decision saved",
+            "id": item.id,
+            "review_status": item.review_status,
+            "reviewer": item.reviewed_by,
+            "comment": item.review_comment,
+            "reviewed_at": item.reviewed_at,
+        }
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        db.close()
+
+
+@app.get("/admin/review", response_class=HTMLResponse)
+def admin_review_dashboard():
+    dashboard_file = Path(__file__).parent / "templates" / "review_dashboard.html"
+    return HTMLResponse(content=dashboard_file.read_text(encoding="utf-8"))

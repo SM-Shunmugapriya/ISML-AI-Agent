@@ -10,6 +10,9 @@ QUALITY_THRESHOLDS = {
 }
 
 
+REVIEW_CONFIDENCE_THRESHOLD = 0.70
+
+
 def get_quality_level(score: float) -> str:
     """Return the governance level for a quality score."""
     if score >= QUALITY_THRESHOLDS["excellent"]:

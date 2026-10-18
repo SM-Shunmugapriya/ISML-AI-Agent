@@ -74,6 +74,27 @@ class Resource(Base):
         nullable=False
     )
 
+    # ENH-012: Human review governance
+    review_status: Mapped[str] = mapped_column(
+        String(20),
+        default="APPROVED",
+        server_default="APPROVED",
+        nullable=False,
+    )
+    review_confidence: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+    review_comment: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+    reviewed_by: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+
+
 
 # ENH-010: Track resource lifecycle status changes
 class ResourceLifecycleEvent(Base):

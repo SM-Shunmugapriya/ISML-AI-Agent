@@ -1,9 +1,11 @@
+
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.database.models import Resource
 from services.freshness_checker import check_resource_availability
+from services.quality_config import REVIEW_CONFIDENCE_THRESHOLD
 
 
 def create_resource(
@@ -23,7 +25,17 @@ def create_resource(
     learning_effectiveness: float | None = None,
     overall_score: float | None = None,
     processing_status: str = "pending",
+    review_confidence: float | None = None,
+    review_status: str | None = None,
 ):
+    # ENH-012: Route resources based on confidence.
+    if review_confidence is None:
+        review_status = "PENDING"
+    elif review_confidence < REVIEW_CONFIDENCE_THRESHOLD:
+        review_status = "PENDING"
+    else:
+        review_status = "APPROVED"
+
     resource = Resource(
         title=title,
         url=url,
@@ -40,6 +52,8 @@ def create_resource(
         learning_effectiveness=learning_effectiveness,
         overall_score=overall_score,
         processing_status=processing_status,
+        review_confidence=review_confidence,
+        review_status=review_status,
         availability_status=check_resource_availability(url),
         last_verified_at=datetime.utcnow(),
     )
@@ -51,10 +65,7 @@ def create_resource(
     return resource
 
 
-def get_resource_by_id(
-    db: Session,
-    resource_id: int
-):
+def get_resource_by_id(db: Session, resource_id: int):
     return (
         db.query(Resource)
         .filter(Resource.id == resource_id)
@@ -62,10 +73,7 @@ def get_resource_by_id(
     )
 
 
-def get_resource_by_url(
-    db: Session,
-    url: str
-):
+def get_resource_by_url(db: Session, url: str):
     return (
         db.query(Resource)
         .filter(Resource.url == url)
@@ -73,10 +81,7 @@ def get_resource_by_url(
     )
 
 
-def get_resource_by_content_hash(
-    db: Session,
-    content_hash: str
-):
+def get_resource_by_content_hash(db: Session, content_hash: str):
     if not content_hash:
         return None
 
@@ -87,16 +92,11 @@ def get_resource_by_content_hash(
     )
 
 
-def get_all_resources(
-    db: Session
-):
+def get_all_resources(db: Session):
     return db.query(Resource).all()
 
 
-def delete_resource(
-    db: Session,
-    resource_id: int
-):
+def delete_resource(db: Session, resource_id: int):
     resource = get_resource_by_id(db, resource_id)
 
     if resource is None:
@@ -111,20 +111,14 @@ def delete_resource(
 def search_similar_resources(
     db: Session,
     query_embedding: list[float],
-    limit: int = 5
+    limit: int = 5,
 ):
-    """
-    Find resources most similar to the query embedding
-    using cosine similarity.
-    """
+    """Find resources most similar to the query embedding."""
 
     distance = Resource.embedding.cosine_distance(query_embedding)
 
-    results = (
-        db.query(
-            Resource,
-            distance.label("distance")
-        )
+    return (
+        db.query(Resource, distance.label("distance"))
         .filter(
             Resource.embedding.is_not(None),
             Resource.status.notin_(["ARCHIVED", "UNAVAILABLE"]),
@@ -133,5 +127,3 @@ def search_similar_resources(
         .limit(limit)
         .all()
     )
-
-    return results

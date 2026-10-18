@@ -1,0 +1,218 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ISML AI Agent | Human Review</title>
+<style>
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#172033;background:#f4f7fb}
+*{box-sizing:border-box}
+body{margin:0}
+header{background:#14213d;color:white;padding:25px max(20px,calc((100% - 1050px)/2))}
+header h1{margin:0 0 7px;font-size:25px}
+header p{margin:0;color:#d4deef}
+main{max-width:1050px;margin:25px auto;padding:0 18px}
+.panel,.resource{background:white;border:1px solid #e0e6ef;border-radius:12px;padding:20px;margin-bottom:16px}
+.panel h2{margin-top:0;font-size:18px}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+input,textarea{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:7px;font:inherit;margin-bottom:13px}
+textarea{resize:vertical;min-height:72px}
+button{border:0;border-radius:7px;padding:10px 15px;font-weight:600;cursor:pointer}
+button:disabled{opacity:.55;cursor:wait}
+.primary{background:#2449a5;color:white}
+.approve{background:#16794b;color:white}
+.reject{background:#b42332;color:white}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#message{margin:12px 0;font-size:14px}
+.error{color:#b42332}.success{color:#16794b}
+.resource h3{margin:0 0 8px;font-size:18px}
+.resource a{overflow-wrap:anywhere;color:#2453a6}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.pill{background:#edf2fa;padding:5px 9px;border-radius:20px;font-size:12px}
+.confidence{font-weight:700}
+.actions{display:flex;gap:9px;flex-wrap:wrap}
+#count{font-weight:700}
+.muted{color:#64748b;font-size:14px}
+@media(max-width:600px){header h1{font-size:21px}.panel,.resource{padding:15px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Human Review Dashboard</h1>
+  <p>ISML AI Agent · Review low-confidence educational resources</p>
+</header>
+<main>
+  <section class="panel">
+    <h2>Reviewer Access</h2>
+    <label for="apiKey">API Key</label>
+    <input id="apiKey" type="password" autocomplete="off" placeholder="Enter your ISML API key">
+    <label for="reviewer">Reviewer Name</label>
+    <input id="reviewer" type="text" autocomplete="name" placeholder="Enter reviewer name">
+    <div class="toolbar">
+      <button class="primary" id="loadButton" type="button">Load Pending Reviews</button>
+      <span class="muted">API key is kept in this page only; it is not saved to browser storage.</span>
+    </div>
+    <div id="message" role="status" aria-live="polite"></div>
+  </section>
+
+  <section>
+    <div class="toolbar" style="justify-content:space-between;margin:20px 0">
+      <h2 style="margin:0">Pending Review Queue</h2>
+      <span id="count">0 items</span>
+    </div>
+    <div id="queue"><p class="muted">Enter your API key and load the queue.</p></div>
+  </section>
+</main>
+
+<script>
+const apiKeyInput = document.getElementById("apiKey");
+const reviewerInput = document.getElementById("reviewer");
+const message = document.getElementById("message");
+const queue = document.getElementById("queue");
+const count = document.getElementById("count");
+const loadButton = document.getElementById("loadButton");
+
+function showMessage(text, type = "") {
+  message.textContent = text;
+  message.className = type;
+}
+
+async function apiRequest(path, options = {}) {
+  const key = apiKeyInput.value.trim();
+  if (!key) throw new Error("Please enter your API key.");
+
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      "X-API-Key": key,
+      ...(options.body ? {"Content-Type": "application/json"} : {}),
+      ...(options.headers || {})
+    }
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.detail || `Request failed (${response.status})`);
+  }
+  return data;
+}
+
+function addText(parent, tag, text, className) {
+  const node = document.createElement(tag);
+  node.textContent = text ?? "";
+  if (className) node.className = className;
+  parent.appendChild(node);
+  return node;
+}
+
+function renderQueue(items) {
+  queue.replaceChildren();
+  count.textContent = `${items.length} item${items.length === 1 ? "" : "s"}`;
+
+  if (!items.length) {
+    addText(queue, "p", "No pending reviews. All caught up!", "muted");
+    return;
+  }
+
+  for (const item of items) {
+    const card = document.createElement("article");
+    card.className = "resource";
+
+    addText(card, "h3", item.title || `Resource #${item.id}`);
+
+    const link = document.createElement("a");
+    link.href = item.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = item.url;
+    card.appendChild(link);
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    addText(meta, "span", `ID: ${item.id}`, "pill");
+    addText(meta, "span", `Category: ${item.category || "Uncategorized"}`, "pill");
+
+    const score = typeof item.confidence === "number"
+      ? `${(item.confidence * 100).toFixed(1)}%`
+      : "Not available";
+    addText(meta, "span", `Confidence: ${score}`, "pill confidence");
+    addText(meta, "span", `Status: ${item.status}`, "pill");
+    card.appendChild(meta);
+
+    const commentLabel = document.createElement("label");
+    commentLabel.textContent = "Review comment (required)";
+    commentLabel.htmlFor = `comment-${item.id}`;
+    card.appendChild(commentLabel);
+
+    const comment = document.createElement("textarea");
+    comment.id = `comment-${item.id}`;
+    comment.placeholder = "Explain why this resource is approved or rejected";
+    comment.maxLength = 2000;
+    card.appendChild(comment);
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    for (const decision of ["APPROVED", "REJECTED"]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = decision === "APPROVED" ? "approve" : "reject";
+      button.textContent = decision === "APPROVED" ? "Approve" : "Reject";
+      button.addEventListener("click", () => submitDecision(item.id, decision, comment, actions));
+      actions.appendChild(button);
+    }
+
+    card.appendChild(actions);
+    queue.appendChild(card);
+  }
+}
+
+async function loadQueue() {
+  loadButton.disabled = true;
+  showMessage("Loading pending reviews...");
+  try {
+    const data = await apiRequest("/api/review-queue");
+    renderQueue(data.items || []);
+    showMessage("Review queue loaded successfully.", "success");
+  } catch (error) {
+    showMessage(error.message, "error");
+  } finally {
+    loadButton.disabled = false;
+  }
+}
+
+async function submitDecision(id, decision, comment, actions) {
+  const reviewer = reviewerInput.value.trim();
+  const note = comment.value.trim();
+
+  if (!reviewer) {
+    showMessage("Please enter the reviewer name.", "error");
+    reviewerInput.focus();
+    return;
+  }
+  if (!note) {
+    showMessage("Please add a review comment before deciding.", "error");
+    comment.focus();
+    return;
+  }
+
+  const buttons = actions.querySelectorAll("button");
+  buttons.forEach(button => button.disabled = true);
+
+  try {
+    await apiRequest(`/api/review-queue/${id}/decision`, {
+      method: "POST",
+      body: JSON.stringify({decision, reviewer, comment: note})
+    });
+    showMessage(`Resource #${id} ${decision.toLowerCase()} successfully.`, "success");
+    await loadQueue();
+  } catch (error) {
+    showMessage(error.message, "error");
+    buttons.forEach(button => button.disabled = false);
+  }
+}
+
+loadButton.addEventListener("click", loadQueue);
+</script>
+</body>
+</html>
