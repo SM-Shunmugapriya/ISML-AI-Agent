@@ -1,4 +1,6 @@
-from typing import List, Dict, Any
+
+from concurrent.futures import ThreadPoolExecutor
+from typing import List, Dict, Any, Tuple
 
 from agents.state import AgentState
 from tools.web_search import web_search
@@ -20,23 +22,57 @@ def discover_resources(state: AgentState) -> AgentState:
 
     resources: List[Dict[str, Any]] = []
 
-    try:
-        for query in search_queries:
+    search_functions = {
+        "web": web_search,
+        "youtube": youtube_search,
+        "pdf": pdf_search,
+        "audio": audio_search,
+    }
 
-            log_info(
-                f"Searching resources | "
-                f"query={query} | "
-                f"tools={search_tools}"
+    # Create tasks in a stable order while removing duplicate queries.
+    tasks: List[Tuple[str, str]] = [
+        (query, tool_name)
+        for query in search_queries
+        for tool_name in search_functions
+        if tool_name in search_tools
+    ]
+
+    def run_search(task: Tuple[str, str]):
+        query, tool_name = task
+
+        log_info(
+            f"Searching resources | "
+            f"query={query} | tool={tool_name}"
+        )
+
+        try:
+            result = search_functions[tool_name](
+                query,
+                max_results=5,
             )
+            return query, tool_name, result, None
+        except Exception as exc:
+            return query, tool_name, {}, exc
 
-            # Web resources
-            if "web" in search_tools:
-                web_result = web_search(
-                    query,
-                    max_results=5
+    try:
+        if tasks:
+            with ThreadPoolExecutor(
+                max_workers=min(8, len(tasks))
+            ) as executor:
+                search_outputs = list(executor.map(run_search, tasks))
+        else:
+            search_outputs = []
+
+        for query, tool_name, result, error in search_outputs:
+            if error is not None:
+                log_error(
+                    f"Resource search failed | "
+                    f"query={query} | tool={tool_name} | error={error}"
                 )
+                continue
 
-                for item in web_result.get("results", []):
+            for item in result.get("results", []):
+                if tool_name == "web":
                     resources.append({
                         "title": item.get("title", ""),
                         "url": item.get("url", ""),
@@ -45,14 +81,7 @@ def discover_resources(state: AgentState) -> AgentState:
                         "score": item.get("score", 0.0),
                     })
 
-            # YouTube resources
-            if "youtube" in search_tools:
-                youtube_result = youtube_search(
-                    query,
-                    max_results=5
-                )
-
-                for item in youtube_result.get("results", []):
+                elif tool_name == "youtube":
                     resources.append({
                         "title": item.get("title", ""),
                         "url": item.get("url", ""),
@@ -63,14 +92,7 @@ def discover_resources(state: AgentState) -> AgentState:
                         "views": item.get("views", ""),
                     })
 
-            # PDF resources
-            if "pdf" in search_tools:
-                pdf_result = pdf_search(
-                    query,
-                    max_results=5
-                )
-
-                for item in pdf_result.get("results", []):
+                elif tool_name == "pdf":
                     resources.append({
                         "title": item.get("title", ""),
                         "url": item.get("url", ""),
@@ -79,14 +101,7 @@ def discover_resources(state: AgentState) -> AgentState:
                         "score": item.get("score", 0.0),
                     })
 
-            # Audio resources
-            if "audio" in search_tools:
-                audio_result = audio_search(
-                    query,
-                    max_results=5
-                )
-
-                for item in audio_result.get("results", []):
+                elif tool_name == "audio":
                     resources.append({
                         "title": item.get("title", ""),
                         "url": item.get("url", ""),
@@ -105,8 +120,8 @@ def discover_resources(state: AgentState) -> AgentState:
             "resources": resources,
         }
 
-    except Exception as e:
+    except Exception as exc:
         log_error(
-            f"Resource discovery failed | error={e}"
+            f"Resource discovery failed | error={exc}"
         )
         raise
