@@ -9,7 +9,7 @@ from services.logger import log_info, log_error
 
 
 def discover_resources(state: AgentState) -> AgentState:
-    search_queries = state.get("search_queries", [])
+    search_queries = list(dict.fromkeys(state.get("search_queries", [])))
     search_tools = state.get("search_tools", ["web"])
 
     log_info(

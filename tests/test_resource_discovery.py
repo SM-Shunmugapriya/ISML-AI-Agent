@@ -176,3 +176,40 @@ def test_multi_source_resource_discovery(monkeypatch):
         assert "title" in resource
         assert "url" in resource
         assert "resource_type" in resource
+
+
+def test_duplicate_search_queries_are_deduplicated(monkeypatch):
+    calls = []
+
+    def fake_web_search(query, max_results=5):
+        calls.append(query)
+        return {
+            "results": [
+                {
+                    "title": query,
+                    "url": "https://example.com",
+                    "content": "Test result",
+                    "score": 0.9,
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        "agents.resource_discovery.web_search",
+        fake_web_search,
+    )
+
+    state = {
+        "search_queries": [
+            "Python programming",
+            "Python programming",
+            "Machine learning",
+        ],
+        "search_tools": ["web"],
+    }
+
+    result = discover_resources(state)
+
+    assert calls == ["Python programming", "Machine learning"]
+    assert len(result["resources"]) == 2
+    assert len(result["search_results"]) == 2

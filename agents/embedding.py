@@ -1,7 +1,7 @@
-from typing import List
+﻿from typing import List
 
 from agents.state import AgentState
-from services.embedding_service import generate_embedding
+from services.embedding_service import generate_embedding as _generate_embedding, generate_embeddings_batch
 from services.logger import log_info, log_error
 
 from app.database.database import SessionLocal
@@ -16,10 +16,13 @@ def generate_resource_embeddings(state: AgentState) -> AgentState:
     )
 
     embeddings: List[List[float]] = []
+    valid_items = []
+    texts = []
 
     db = SessionLocal()
 
     try:
+        # Collect valid resources without changing their original order.
         for item in resources:
             resource = item.get("resource", item)
 
@@ -39,19 +42,32 @@ def generate_resource_embeddings(state: AgentState) -> AgentState:
             if not database_id:
                 log_info(
                     f"Skipping embedding | title={title} | "
-                    f"reason=missing_database_id"
+                    "reason=missing_database_id"
                 )
                 continue
 
-            # Generate embedding
-            embedding = generate_embedding(text)
+            valid_items.append(
+                {
+                    "database_id": database_id,
+                    "title": title,
+                }
+            )
+            texts.append(text)
 
-            embeddings.append(embedding)
+        # Generate vectors in batches of up to 50 texts per API request.
+        if texts:
+            embeddings = generate_embeddings_batch(texts, batch_size=50)
 
-            # Find exact persisted database resource by ID
+            if len(embeddings) != len(valid_items):
+                raise ValueError(
+                    "Embedding count does not match valid resource count"
+                )
+
+        # Update database rows using their exact IDs.
+        for item, embedding in zip(valid_items, embeddings):
             db_resource = (
                 db.query(Resource)
-                .filter(Resource.id == database_id)
+                .filter(Resource.id == item["database_id"])
                 .first()
             )
 
@@ -68,10 +84,9 @@ def generate_resource_embeddings(state: AgentState) -> AgentState:
             else:
                 log_info(
                     f"Database resource not found | "
-                    f"id={database_id}"
+                    f"id={item['database_id']}"
                 )
 
-        # Commit all embedding updates
         db.commit()
 
         log_info(
@@ -87,9 +102,7 @@ def generate_resource_embeddings(state: AgentState) -> AgentState:
     except Exception as e:
         db.rollback()
 
-        log_error(
-            f"Embedding generation failed | error={e}"
-        )
+        log_error(f"Embedding generation failed | error={e}")
 
         return {
             **state,
@@ -98,3 +111,8 @@ def generate_resource_embeddings(state: AgentState) -> AgentState:
 
     finally:
         db.close()
+
+
+def generate_embedding(text: str) -> list[float]:
+    """Compatibility wrapper for existing callers and tests."""
+    return _generate_embedding(text)
