@@ -1,3 +1,4 @@
+
 import pytest
 
 from agents.workflow import app
@@ -96,6 +97,13 @@ def test_end_to_end_workflow(monkeypatch):
     )
 
     monkeypatch.setattr(
+        "agents.embedding.generate_embeddings_batch",
+        lambda texts, batch_size=50: [
+            test_embedding for _ in texts
+        ],
+    )
+
+    monkeypatch.setattr(
         "services.vector_search.generate_embedding",
         lambda text: test_embedding,
     )
@@ -123,7 +131,10 @@ def test_end_to_end_workflow(monkeypatch):
     assert result["persisted_resources"]
 
     assert result["embeddings"]
-    assert all(len(embedding) == 3072 for embedding in result["embeddings"])
+    assert all(
+        len(embedding) == 3072
+        for embedding in result["embeddings"]
+    )
 
     assert "validated_output" in result
 
