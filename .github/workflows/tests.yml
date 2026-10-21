@@ -10,6 +10,30 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: isml_ai_agent
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d isml_ai_agent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      GEMINI_API_KEY: ci-dummy-key
+      POSTGRES_USER: ci_user
+      POSTGRES_PASSWORD: ci_password
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: isml_ai_agent
+      DATABASE_URL: postgresql+psycopg://ci_user:ci_password@localhost:5432/isml_ai_agent
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
