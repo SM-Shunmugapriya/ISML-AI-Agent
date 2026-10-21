@@ -1,4 +1,4 @@
-﻿
+﻿yaml
 name: Python Tests
 
 on:
@@ -7,9 +7,14 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
+    name: Regression Tests and Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     services:
       postgres:
@@ -35,6 +40,7 @@ jobs:
       POSTGRES_PORT: "5432"
       POSTGRES_DB: isml_ai_agent
       DATABASE_URL: postgresql+psycopg://ci_user:ci_password@localhost:5432/isml_ai_agent
+      PYTHONUNBUFFERED: "1"
 
     steps:
       - name: Checkout repository
@@ -50,6 +56,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Validate test configuration
+        run: |
+          python --version
+          python -m pytest --version
+          python -m pytest --help | grep -E -- '--cov|--cov-fail-under'
 
       - name: Initialize PostgreSQL and pgvector
         run: |
@@ -69,4 +81,19 @@ jobs:
 
       - name: Run regression tests with coverage
         run: |
-          python -m pytest -q --cov=agents --cov=services --cov=app --cov-report=term-missing --cov-fail-under=70
+          python -m pytest -q \
+            --cov=agents \
+            --cov=services \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=70
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage-report
+          path: coverage.xml
+          if-no-files-found: ignore
+          retention-days: 7

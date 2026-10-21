@@ -158,9 +158,19 @@ def test_master_e2e_french_a1_greetings(monkeypatch):
     # ---------------------------------------------------------
     test_embedding = [1.0] + [0.0] * 3071
 
+    # The workflow now uses batch embeddings. Mock this function too so
+    # the E2E test never calls Gemini and stays deterministic in local/CI runs.
+    monkeypatch.setattr(
+        "agents.embedding.generate_embeddings_batch",
+        lambda texts, batch_size=50: [
+            test_embedding[:] for _ in texts
+        ],
+    )
+
+    # Keep the single-text mock for any legacy path still used by the workflow.
     monkeypatch.setattr(
         "agents.embedding.generate_embedding",
-        lambda text: test_embedding,
+        lambda text: test_embedding[:],
     )
 
     # Semantic search uses its own imported embedding function.
