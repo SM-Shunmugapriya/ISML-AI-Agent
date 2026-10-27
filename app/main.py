@@ -1,10 +1,15 @@
 from pathlib import Path
 import logging
+import time
 from contextlib import asynccontextmanager
-from fastapi.responses import HTMLResponse
 from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.routing import APIRoute
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -45,15 +50,147 @@ limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="ISML AI Agent",
-    description="Academic Resource Intelligence Agent",
-    version="1.0.0",
+    description=(
+        "Academic Resource Intelligence Agent. "
+        "Legacy endpoints remain available; API endpoints are also available under /v1."
+    ),
+    version="1.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 app.state.limiter = limiter
+
+
+class ApiResponse(BaseModel):
+    """Flexible response schema that preserves each endpoint's existing payload."""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class HomeResponse(BaseModel):
+    message: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+
+
+async def api_http_exception_handler(
+    request: Request,
+    exc: StarletteHTTPException,
+) -> JSONResponse:
+    detail = exc.detail
+    message = detail if isinstance(detail, str) else "Request failed"
+    code_by_status = {
+        400: "bad_request",
+        401: "unauthorized",
+        403: "forbidden",
+        404: "not_found",
+        405: "method_not_allowed",
+        409: "conflict",
+        422: "validation_error",
+        429: "rate_limit_exceeded",
+    }
+    code = code_by_status.get(exc.status_code, "http_error")
+    logger.warning(
+        "HTTP error | method=%s | path=%s | status=%s",
+        request.method,
+        request.url.path,
+        exc.status_code,
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {"code": code, "message": message},
+            # Keep detail for compatibility with existing clients.
+            "detail": jsonable_encoder(detail),
+        },
+        headers=exc.headers,
+    )
+
+
+async def request_validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    logger.warning(
+        "Request validation failed | method=%s | path=%s",
+        request.method,
+        request.url.path,
+    )
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "code": "validation_error",
+                "message": "Request validation failed",
+            },
+            "detail": jsonable_encoder(exc.errors()),
+        },
+    )
+
+
+async def rate_limit_exception_handler(
+    request: Request,
+    exc: RateLimitExceeded,
+) -> JSONResponse:
+    logger.warning(
+        "Rate limit exceeded | method=%s | path=%s",
+        request.method,
+        request.url.path,
+    )
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": {
+                "code": "rate_limit_exceeded",
+                "message": "Rate limit exceeded",
+            },
+            "detail": "Rate limit exceeded",
+        },
+    )
+
+
+app.add_exception_handler(StarletteHTTPException, api_http_exception_handler)
+app.add_exception_handler(
+    RequestValidationError,
+    request_validation_exception_handler,
+)
 app.add_exception_handler(
     RateLimitExceeded,
-    _rate_limit_exceeded_handler,
+    rate_limit_exception_handler,
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log request metadata and timing without logging credentials or bodies."""
+    started_at = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        elapsed_ms = (time.perf_counter() - started_at) * 1000
+        logger.exception(
+            "Request failed | method=%s | path=%s | duration_ms=%.2f",
+            request.method,
+            request.url.path,
+            elapsed_ms,
+        )
+        raise
+
+    elapsed_ms = (time.perf_counter() - started_at) * 1000
+    logger.info(
+        "Request completed | method=%s | path=%s | status=%s | duration_ms=%.2f",
+        request.method,
+        request.url.path,
+        response.status_code,
+        elapsed_ms,
+    )
+    return response
+
 
 init_db()
 
@@ -104,7 +241,7 @@ class ReviewDecision(BaseModel):
         return value
 
 
-@app.get("/")
+@app.get("/", response_model=HomeResponse)
 def home():
     logger.info("Home endpoint called")
     return {
@@ -112,7 +249,7 @@ def home():
     }
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 def health():
     logger.info("Health check called")
     return {
@@ -121,7 +258,7 @@ def health():
     }
 
 
-@app.post("/resources")
+@app.post("/resources", response_model=ApiResponse)
 @limiter.limit("30/minute")
 def add_resource(
     request: Request,
@@ -185,7 +322,7 @@ def add_resource(
         db.close()
 
 
-@app.get("/resources")
+@app.get("/resources", response_model=list[ApiResponse])
 @limiter.limit("30/minute")
 def list_resources(
     request: Request,
@@ -218,7 +355,7 @@ def list_resources(
         db.close()
 
 
-@app.get("/resources/search")
+@app.get("/resources/search", response_model=ApiResponse)
 @limiter.limit("30/minute")
 def search_resources(
     request: Request,
@@ -277,7 +414,7 @@ def search_resources(
         db.close()
 
 
-@app.get("/resources/{resource_id}")
+@app.get("/resources/{resource_id}", response_model=ApiResponse)
 @limiter.limit("30/minute")
 def get_resource(
     request: Request,
@@ -319,7 +456,7 @@ def get_resource(
         db.close()
 
 
-@app.delete("/resources/{resource_id}")
+@app.delete("/resources/{resource_id}", response_model=ApiResponse)
 @limiter.limit("30/minute")
 def remove_resource(
     request: Request,
@@ -347,10 +484,22 @@ def remove_resource(
 
 
 class AgentDiscoverRequest(BaseModel):
-    user_query: str
+    user_query: str = Field(
+        min_length=1,
+        max_length=2000,
+        description="Topic or query used to discover academic resources",
+    )
+
+    @field_validator("user_query")
+    @classmethod
+    def validate_user_query(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("user_query cannot be empty")
+        return value
 
 
-@app.post("/api/agent/discover")
+@app.post("/api/agent/discover", response_model=ApiResponse)
 @limiter.limit("10/minute")
 def discover_agent(
     request: Request,
@@ -400,11 +549,11 @@ def discover_agent(
 
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="Agent workflow failed. Please try again later.",
         )
 
 
-@app.get("/api/quality/governance")
+@app.get("/api/quality/governance", response_model=ApiResponse)
 @limiter.limit("30/minute")
 def quality_governance(
     request: Request,
@@ -418,7 +567,7 @@ def quality_governance(
     finally:
         db.close()
 
-@app.get("/api/review-queue")
+@app.get("/api/review-queue", response_model=ApiResponse)
 @limiter.limit("30/minute")
 def list_review_queue(
     request: Request,
@@ -445,7 +594,7 @@ def list_review_queue(
         db.close()
 
 
-@app.post("/api/review-queue/{resource_id}/decision")
+@app.post("/api/review-queue/{resource_id}/decision", response_model=ApiResponse)
 @limiter.limit("30/minute")
 def decide_resource_review(
     request: Request,
@@ -482,3 +631,31 @@ def decide_resource_review(
 def admin_review_dashboard():
     dashboard_file = Path(__file__).parent / "templates" / "review_dashboard.html"
     return HTMLResponse(content=dashboard_file.read_text(encoding="utf-8"))
+
+
+# Register versioned aliases for API routes while preserving existing legacy URLs.
+# The admin HTML dashboard and root landing page are intentionally not versioned.
+_legacy_api_routes = [
+    route
+    for route in list(app.routes)
+    if isinstance(route, APIRoute)
+    and route.path not in {"/", "/admin/review"}
+    and not route.path.startswith("/v1/")
+]
+
+for _route in _legacy_api_routes:
+    app.add_api_route(
+        path=f"/v1{_route.path}",
+        endpoint=_route.endpoint,
+        methods=_route.methods,
+        name=f"v1_{_route.name}",
+        response_model=_route.response_model,
+        status_code=_route.status_code,
+        response_class=_route.response_class,
+        tags=_route.tags,
+        summary=_route.summary,
+        description=_route.description,
+        responses=_route.responses,
+        deprecated=_route.deprecated,
+        include_in_schema=True,
+    )
