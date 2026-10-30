@@ -1,8 +1,12 @@
+
+import time
+
 import pytest
 
 from agents.workflow import app
 from app.database.database import SessionLocal
 from app.database.models import Resource
+from services.output_schema import FinalOutput
 
 
 TEST_URLS = [
@@ -12,7 +16,7 @@ TEST_URLS = [
 
 
 def test_master_e2e_french_a1_greetings(monkeypatch):
-    """BUG-018: Verify the complete workflow through semantic retrieval."""
+    """Verify the complete workflow through semantic retrieval and final schema validation."""
 
     # ---------------------------------------------------------
     # Mock LLM: Topic Analysis
@@ -158,8 +162,6 @@ def test_master_e2e_french_a1_greetings(monkeypatch):
     # ---------------------------------------------------------
     test_embedding = [1.0] + [0.0] * 3071
 
-    # The workflow now uses batch embeddings. Mock this function too so
-    # the E2E test never calls Gemini and stays deterministic in local/CI runs.
     monkeypatch.setattr(
         "agents.embedding.generate_embeddings_batch",
         lambda texts, batch_size=50: [
@@ -167,16 +169,14 @@ def test_master_e2e_french_a1_greetings(monkeypatch):
         ],
     )
 
-    # Keep the single-text mock for any legacy path still used by the workflow.
     monkeypatch.setattr(
         "agents.embedding.generate_embedding",
         lambda text: test_embedding[:],
     )
 
-    # Semantic search uses its own imported embedding function.
     monkeypatch.setattr(
         "services.vector_search.generate_embedding",
-        lambda text: test_embedding,
+        lambda text: test_embedding[:],
     )
 
     db = SessionLocal()
@@ -197,13 +197,19 @@ def test_master_e2e_french_a1_greetings(monkeypatch):
         db.commit()
 
         # -----------------------------------------------------
-        # Execute complete workflow
+        # Execute Complete Workflow
         # -----------------------------------------------------
+        workflow_started_at = time.perf_counter()
+
         result = app.invoke(
             {
                 "user_query": "French A1 Greetings",
                 "level": "beginner",
             }
+        )
+
+        workflow_duration = (
+            time.perf_counter() - workflow_started_at
         )
 
         # -----------------------------------------------------
@@ -295,7 +301,15 @@ def test_master_e2e_french_a1_greetings(monkeypatch):
         assert success_rate > 0.90
 
         # -----------------------------------------------------
-        # 15. Verify PostgreSQL Persistence
+        # 15. Workflow Duration
+        # -----------------------------------------------------
+        assert workflow_duration < 300, (
+            f"Workflow exceeded 5 minutes: "
+            f"{workflow_duration:.2f} seconds"
+        )
+
+        # -----------------------------------------------------
+        # 16. Verify PostgreSQL Persistence
         # -----------------------------------------------------
         saved_resources = (
             db.query(Resource)
@@ -306,7 +320,7 @@ def test_master_e2e_french_a1_greetings(monkeypatch):
         assert len(saved_resources) == 1
 
         # -----------------------------------------------------
-        # 16. Verify pgvector Embeddings
+        # 17. Verify pgvector Embeddings
         # -----------------------------------------------------
         embedded_resources = [
             resource
@@ -320,7 +334,7 @@ def test_master_e2e_french_a1_greetings(monkeypatch):
             assert len(resource.embedding) == 3072
 
         # -----------------------------------------------------
-        # 17. Semantic Retrieval
+        # 18. Semantic Retrieval
         # -----------------------------------------------------
         from services.vector_search import find_similar_resources
 
@@ -342,28 +356,38 @@ def test_master_e2e_french_a1_greetings(monkeypatch):
             assert 0 <= item["similarity_score"] <= 1
 
         # -----------------------------------------------------
-        # 18. Final Output Schema
+        # 19. Final Output Schema Validation
         # -----------------------------------------------------
         assert "validated_output" in result
 
         output = result["validated_output"]
 
-        assert output["topic"] == "Greetings"
-        assert "recommendedResources" in output
-        assert "learningSequence" in output
+        # Validate complete response using actual Pydantic schema
+        validated_model = FinalOutput.model_validate(output)
 
-        assert isinstance(
-            output["recommendedResources"],
-            list,
-        )
+        assert validated_model.topic == "Greetings"
 
-        assert isinstance(
-            output["learningSequence"],
-            list,
-        )
+        assert len(validated_model.recommendedResources) > 0
+        assert len(validated_model.learningSequence) > 0
 
-        assert len(output["recommendedResources"]) > 0
-        assert len(output["learningSequence"]) > 0
+        # Verify required resource fields
+        for resource in validated_model.recommendedResources:
+            assert resource.title
+            assert resource.type
+            assert 0 <= resource.qualityScore <= 100
+            assert resource.difficulty
+            assert resource.category
+            assert resource.summary
+            assert resource.url
+
+        for resource in validated_model.learningSequence:
+            assert resource.title
+            assert resource.type
+            assert 0 <= resource.qualityScore <= 100
+            assert resource.difficulty
+            assert resource.category
+            assert resource.summary
+            assert resource.url
 
     finally:
         # -----------------------------------------------------
@@ -380,4 +404,3 @@ def test_master_e2e_french_a1_greetings(monkeypatch):
 
         db.commit()
         db.close()
-
