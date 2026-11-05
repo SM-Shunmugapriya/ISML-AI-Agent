@@ -1,4 +1,5 @@
-﻿name: Python Tests
+﻿```yaml
+name: Python Tests
 
 on:
   push:
@@ -78,7 +79,11 @@ jobs:
           print("PostgreSQL tables and pgvector initialized.")
           PY
 
-      - name: Run regression tests with coverage
+      - name: Run dedicated regression tests
+        run: |
+          python -m pytest tests/regression/ -v
+
+      - name: Run full test suite with coverage
         run: |
           python -m pytest -q \
             --cov=agents \
@@ -96,3 +101,4 @@ jobs:
           path: coverage.xml
           if-no-files-found: ignore
           retention-days: 7
+```
